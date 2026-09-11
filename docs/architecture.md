@@ -14,6 +14,9 @@
 | `AudioClip` | `Audio/` | The recording, as float PCM / WAV bytes / temp file |
 | `ISpeechToTextEngine` | `Stt/` | **The extension point.** Three implementations ship |
 | `ModelPathResolver` | `Stt/` | Finds model assets across the dev, published and per-user layouts |
+| `SettingsForm` | `Tray/` | The settings window, built in code, opened from the tray |
+| `SettingsService` | `Configuration/` | Validates edits, applies what it can live, reports what needs a restart |
+| `SettingsStore` | `Configuration/` | Diffs edits against the defaults and writes `appsettings.user.json` |
 | `TextInjector` | `Injection/` | `SendInput` + `KEYEVENTF_UNICODE`, clipboard fast path |
 | `FileLoggerProvider` | `Diagnostics/` | Queued, non-blocking append-only log |
 
@@ -189,5 +192,6 @@ so toggling on is instant. The tray menu shows which state the model is in.
 | Icons drawn at runtime | No binary assets in the repo. Swap `TrayIcons.Build` for `new Icon("app.ico")` when you have artwork. |
 | Own file logger instead of Serilog/NLog | One dependency-free file, and full control over the non-blocking write path the hook callback depends on. |
 | Model released when switched off, not on a timer | "Off" is an explicit statement that the user is done for now, so it is the one moment a 260 MB release is unambiguously wanted. Idle timers guess, and guess wrong mid-conversation. |
-| Settings bound once at startup, no hot reload | A config change mid-utterance has no safe meaning. Restart is honest. |
+| Settings edited in a window, persisted to a second JSON layer | Rewriting `appsettings.json` would strip the comments that document every key. A diff-only overrides file keeps them, shows exactly what was changed, and reverts by being deleted. |
+| Most settings apply live; the engine does not | The components that consume settings read them per use, so the shared objects being mutable is all it takes. The engine is the exception - it is a singleton holding a loaded native model, and swapping it mid-session would mean tearing that down under a possibly-running decode. The UI says which changes need a restart rather than pretending. |
 | Models probed at runtime, copied only on `publish` | A 200 MB copy on every incremental build is a tax paid hundreds of times to help once. Probing lets one `appsettings.json` serve the dev, published and installed layouts unchanged. |

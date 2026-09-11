@@ -172,7 +172,7 @@
     <li><a href="#run">Run it</a></li>
     <li><a href="#shortcut">The shortcut</a></li>
     <li><a href="#tray">The tray menu</a></li>
-    <li><a href="#config">Configuration</a></li>
+    <li><a href="#config">Settings</a></li>
     <li><a href="#logs">Logs</a></li>
     <li><a href="#limits">What it cannot do</a></li>
     <li><a href="#trouble">If something is wrong</a></li>
@@ -332,7 +332,7 @@ dotnet publish -c Release</code></pre>
   <h2>4. The tray menu</h2>
   <p><strong>Left-click or right-click</strong> the icon:</p>
   <div class="menu">
-    <div class="dim">Push-to-Talk Dictation 1.0.1</div>
+    <div class="dim">Push-to-Talk Dictation 1.1.0</div>
     <div class="sep"></div>
     <div class="act">Toggle Active (On)</div>
     <div class="sep"></div>
@@ -341,6 +341,7 @@ dotnet publish -c Release</code></pre>
     <div class="dim">Model: loaded in memory</div>
     <div class="dim">Hold: Ctrl+Shift+Space</div>
     <div class="sep"></div>
+    <div class="act">Settings...</div>
     <div class="act">User guide</div>
     <div class="act">Open settings file...</div>
     <div class="act">Open log folder...</div>
@@ -356,6 +357,7 @@ dotnet publish -c Release</code></pre>
       <tr><td><em>Engine: …</em></td><td>Which speech engine is in use</td></tr>
       <tr><td><em>Model: …</em></td><td>Whether the model is currently in memory</td></tr>
       <tr><td><em>Hold: …</em></td><td>Your current hotkey</td></tr>
+      <tr><td><strong>Settings…</strong></td><td>Opens the settings window</td></tr>
       <tr><td><strong>User guide</strong></td><td>Opens this page</td></tr>
       <tr><td><strong>Open settings file…</strong></td><td>Opens <code>appsettings.json</code> in your text editor</td></tr>
       <tr><td><strong>Open log folder…</strong></td><td>Opens the folder containing <code>app.log</code></td></tr>
@@ -388,21 +390,46 @@ dotnet publish -c Release</code></pre>
 </section>
 
 <section id="config">
-  <h2>5. Configuration</h2>
+  <h2>5. Settings</h2>
 
-  <h3>Where the file is</h3>
-  <p><strong><code>appsettings.json</code>, in the same folder as the <code>.exe</code>.</strong>
-     The reliable way to open it: <strong>tray icon → Open settings file…</strong></p>
-<pre><code>C:\Apps\PushToTalkDictation\appsettings.json      (a published install)</code></pre>
-  <p>You can use <code>//</code> comments and trailing commas in it.</p>
-  <div class="note">
-    <p><strong>Changes take effect when you restart the app.</strong> There is no live reload and
-       no settings window — edit the file, then <strong>Exit</strong> from the tray menu and
-       start it again.</p>
+  <h3>The settings window</h3>
+  <div class="hero">
+    <p>Tray icon → Settings…</p>
+    <p class="sub">Five tabs: Hotkey, Audio, Speech, Typing, General. Every field explains
+       itself.</p>
   </div>
-  <p>If the app stops appearing in your tray after an edit, you almost certainly have a JSON
-     syntax error — a missing comma or brace. Run the <code>.exe</code> from a PowerShell window
-     and it will tell you.</p>
+  <p>Press <strong>Save</strong> and the change takes effect immediately.
+     <strong>One exception:</strong> changing the <em>speech engine</em> needs a restart, and
+     the window says so when you do it.</p>
+  <p>The hotkey box checks itself as you type — it shows <em>"Reads as Ctrl+Alt+D"</em> when
+     the combo is valid and tells you what is wrong when it is not, so you cannot save
+     something that leaves you without a working shortcut. The microphone is a dropdown of
+     your actual input devices rather than a device ID you have to look up.</p>
+
+  <h3>Where your changes go</h3>
+  <p>Into <strong><code>appsettings.user.json</code></strong>, beside the program, and only
+     the values you actually changed:</p>
+<pre><code>{
+  "Hotkey": { "Combo": "Ctrl+Alt+D" },
+  "Injection": { "AppendTrailingSpace": false }
+}</code></pre>
+  <p>The shipped <code>appsettings.json</code> is never rewritten, so its comments explaining
+     every option stay intact and you can always see what the defaults were.
+     <strong>Deleting <code>appsettings.user.json</code> puts everything back to the
+     defaults</strong> — and if you revert every change in the window, it deletes the file for
+     you.</p>
+
+  <h3>Editing the file by hand</h3>
+  <p>Still fine, and necessary for the handful of keys the window does not cover — model file
+     names and the HTTP endpoint. <strong>Advanced…</strong> in the settings window opens
+     <code>appsettings.json</code>, as does tray → <strong>Open settings file…</strong>. It
+     accepts <code>//</code> comments and trailing commas.</p>
+  <div class="note">
+    <p>A hand edit needs a restart: only changes made through the window apply live.</p>
+  </div>
+  <p>If the app stops appearing in your tray after a hand edit, you almost certainly have a
+     JSON syntax error — a missing comma or brace. Run the <code>.exe</code> from a PowerShell
+     window and it will tell you.</p>
 
   <h3>The settings you are most likely to want</h3>
   <div class="scroll">
@@ -432,14 +459,12 @@ dotnet publish -c Release</code></pre>
     </tbody>
   </table>
   </div>
-  <p>Every key, including those not listed here, is documented in
-     <code>docs/configuration.md</code>.</p>
+  <p>All of these are in the settings window. Every key, including the ones the window does
+     not expose, is documented in <code>docs/configuration.md</code>.</p>
 
   <h3>Changing the hotkey</h3>
-<pre><code>"Hotkey": {
-  "Combo": "Ctrl+Alt+D"
-}</code></pre>
-  <p>Write modifiers and one ordinary key joined by <code>+</code>:</p>
+  <p>Settings window → <strong>Hotkey</strong> tab → <em>Hold-to-talk combo</em>. Write
+     modifiers and one ordinary key joined by <code>+</code>:</p>
   <ul>
     <li>Modifiers: <code>Ctrl</code>, <code>Shift</code>, <code>Alt</code>, <code>Win</code></li>
     <li>The ordinary key: any key name — <code>Space</code>, <code>F9</code>, <code>D</code>,

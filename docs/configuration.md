@@ -1,8 +1,29 @@
 # Configuration
 
-Everything lives in `appsettings.json`, copied next to the executable at build time.
-It is bound once at startup into `Configuration/AppSettings.cs` — **there is no hot reload**;
-restart after editing. The tray menu has an *Open settings file* item.
+Most settings can be changed in the **settings window** — tray menu → *Settings…* — and take
+effect immediately. This document is the full reference, including the keys the window does
+not expose.
+
+## The two layers
+
+| File | What it is |
+|---|---|
+| `appsettings.json` | The documented defaults, shipped beside the executable. Commented; not written to by the app. |
+| `appsettings.user.json` | Only the values you changed, written by the settings window. Layered on top. |
+
+Environment variables (below) still win over both. Deleting `appsettings.user.json` returns
+everything to the shipped defaults, and the settings window deletes it for you if you revert
+every change.
+
+Editing `appsettings.json` by hand still works — the tray's *Open settings file* item opens
+it, and the settings window's *Advanced…* button does the same. A hand edit needs a restart;
+only changes made through the window apply live.
+
+## What applies without a restart
+
+Everything the window exposes except the **speech engine**, which is a singleton holding a
+loaded native model. The window says so when you change it. Editing model file names or paths
+in `appsettings.json` also needs a restart, as does `Logging.FilePath`.
 
 The file allows `//` comments and trailing commas (the .NET JSON configuration provider is
 configured for both).

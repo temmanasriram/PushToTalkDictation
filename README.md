@@ -21,6 +21,10 @@ dotnet build -c Release
 A microphone icon appears in the tray. Hold **Ctrl+Shift+Space**, speak, release.
 Grey = off, blue = ready, red = recording, amber = transcribing.
 
+Settings are in the tray menu under *Settings…* — the hotkey, microphone, typing behaviour
+and the rest, applied immediately. Changes are written to `appsettings.user.json`, leaving the
+commented defaults in `appsettings.json` untouched.
+
 Switching **Off** in the tray menu uninstalls the keyboard hook and releases the model,
 taking the process from ~310 MB to ~75 MB; switching **On** reloads it in about a second.
 Set `SpeechToText.UnloadOnInactive: false` to keep it resident instead.

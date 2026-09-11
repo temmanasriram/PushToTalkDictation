@@ -14,6 +14,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly DictationController _controller;
     private readonly AppSettings _settings;
+    private readonly SettingsService _settingsService;
     private readonly ILogger<TrayApplicationContext> _logger;
 
     private readonly TrayIcons _icons = new();
@@ -26,13 +27,17 @@ public sealed class TrayApplicationContext : ApplicationContext
     // Owns the thread affinity for UI updates coming off the pipeline.
     private readonly SynchronizationContext _uiContext;
 
+    private SettingsForm? _settingsDialog;
+
     public TrayApplicationContext(
         DictationController controller,
         AppSettings settings,
+        SettingsService settingsService,
         ILogger<TrayApplicationContext> logger)
     {
         _controller = controller;
         _settings = settings;
+        _settingsService = settingsService;
         _logger = logger;
         _uiContext = SynchronizationContext.Current
                      ?? throw new InvalidOperationException("TrayApplicationContext must be built on the UI thread.");
@@ -50,6 +55,9 @@ public sealed class TrayApplicationContext : ApplicationContext
         var engineItem = new ToolStripMenuItem($"Engine: {_controller.EngineName}") { Enabled = false };
         _modelItem = new ToolStripMenuItem("Model: -") { Enabled = false };
         var hotkeyItem = new ToolStripMenuItem($"Hold: {_controller.Combo}") { Enabled = false };
+
+        var settingsUiItem = new ToolStripMenuItem("Settings...");
+        settingsUiItem.Click += (_, _) => OpenSettingsDialog();
 
         var guideItem = new ToolStripMenuItem("User guide");
         guideItem.Click += (_, _) => OpenUserGuide();
@@ -75,6 +83,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             _modelItem,
             hotkeyItem,
             new ToolStripSeparator(),
+            settingsUiItem,
             guideItem,
             settingsItem,
             logItem,
@@ -151,6 +160,38 @@ public sealed class TrayApplicationContext : ApplicationContext
     }
 
     // ---------------------------------------------------------------- actions
+
+    /// <summary>
+    /// Shows the settings window. Modeless would let the user change the hotkey while a
+    /// hold is in progress, so it is modal and only one can be open at a time.
+    /// </summary>
+    private void OpenSettingsDialog()
+    {
+        if (_settingsDialog is not null)
+        {
+            _settingsDialog.Activate();
+            return;
+        }
+
+        try
+        {
+            using var dialog = new SettingsForm(_settingsService, _logger);
+            _settingsDialog = dialog;
+            dialog.ShowDialog();
+
+            // The hotkey, the engine name and the model state can all have changed.
+            RefreshUi(_controller.State);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "The settings window failed.");
+            _notifyIcon.ShowBalloonTip(5000, AppInfo.ProductName, ex.Message, ToolTipIcon.Error);
+        }
+        finally
+        {
+            _settingsDialog = null;
+        }
+    }
 
     /// <summary>
     /// Opens the HTML guide that ships beside the executable, in the default browser.

@@ -7,3 +7,6 @@ logs/
 # Visual Studio / Rider user state (machine-local, never shared)
 .vs/
 *.user
+
+# Written by the settings window; per-user, never shared
+appsettings.user.json

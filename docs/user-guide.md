@@ -173,12 +173,13 @@ app types what was recognised and nothing else.
 
 | Item | What it does |
 |---|---|
-| *Push-to-Talk Dictation 1.0.1* | The version you are running — quote it if you report a problem |
+| *Push-to-Talk Dictation 1.1.0* | The version you are running — quote it if you report a problem |
 | **Toggle Active (On/Off)** | Turns dictation on or off — see below |
 | *Ready - hold Ctrl+Shift+Space* | Current status, the same information as the icon colour |
 | *Engine: …* | Which speech engine is in use |
 | *Model: …* | Whether the model is currently in memory |
 | *Hold: …* | Your current hotkey |
+| **Settings…** | Opens the settings window |
 | **User guide** | Opens this guide (the HTML copy) in your browser |
 | **Open settings file…** | Opens `appsettings.json` in your text editor |
 | **Open log folder…** | Opens the folder containing `app.log` |
@@ -207,26 +208,50 @@ that is mid-transcription.
 
 ---
 
-## 5. Configuration
+## 5. Settings
 
-### Where the file is
+### The settings window
 
-**`appsettings.json`, in the same folder as the `.exe`.**
+**Tray icon → Settings…**
 
-The reliable way to open it: **tray icon → Open settings file…**
+Five tabs — **Hotkey**, **Audio**, **Speech**, **Typing**, **General**. Every field has a line
+of explanation under it, so you should not need this guide open while you use it.
 
+Press **Save** and the change takes effect immediately. **One exception:** changing the
+*speech engine* needs a restart, and the window says so when you do it.
+
+The hotkey box checks itself as you type — it shows *"Reads as Ctrl+Alt+D"* when the combo is
+valid and tells you what is wrong when it is not, so you cannot save something that leaves you
+without a working shortcut. The microphone is a dropdown of your actual input devices rather
+than a device ID you have to look up.
+
+### Where your changes go
+
+Into **`appsettings.user.json`**, beside the program, and only the values you actually changed:
+
+```jsonc
+{
+  "Hotkey": { "Combo": "Ctrl+Alt+D" },
+  "Injection": { "AppendTrailingSpace": false }
+}
 ```
-C:\Apps\PushToTalkDictation\appsettings.json      (a published install)
-```
 
-You can use `//` comments and trailing commas in it.
+The shipped `appsettings.json` is never rewritten, so its comments explaining every option
+stay intact and you can always see what the defaults were. **Deleting
+`appsettings.user.json` puts everything back to the defaults** — and if you revert every
+change in the window, it deletes the file for you.
 
-> **Changes take effect when you restart the app.** There is no live reload and no settings
-> window — edit the file, then **Exit** from the tray menu and start it again.
+### Editing the file by hand
 
-If the app stops appearing in your tray after an edit, you almost certainly have a JSON
-syntax error — a missing comma or brace. Run the `.exe` from a PowerShell window and it
-will tell you.
+Still fine, and necessary for the handful of keys the window does not cover — model file
+names and the HTTP endpoint. **Advanced…** in the settings window opens `appsettings.json`,
+as does tray → **Open settings file…**. It accepts `//` comments and trailing commas.
+
+A hand edit needs a restart: only changes made through the window apply live.
+
+If the app stops appearing in your tray after a hand edit, you almost certainly have a JSON
+syntax error — a missing comma or brace. Run the `.exe` from a PowerShell window and it will
+tell you.
 
 ### The settings you are most likely to want
 
@@ -243,18 +268,13 @@ will tell you.
 | `Hotkey.MaxRecordingSeconds` | `120` | You dictate for longer than two minutes at a stretch |
 | `Logging.MinimumLevel` | `"Information"` | Set `"Debug"` while diagnosing anything |
 
-Every key, including those not listed here, is documented in
-[configuration.md](configuration.md).
+All of these are in the settings window. Every key, including the ones the window does not
+expose, is documented in [configuration.md](configuration.md).
 
 ### Changing the hotkey
 
-```jsonc
-"Hotkey": {
-  "Combo": "Ctrl+Alt+D"
-}
-```
-
-Write modifiers and one ordinary key joined by `+`:
+Settings window → **Hotkey** tab → *Hold-to-talk combo*. Write modifiers and one ordinary key
+joined by `+`:
 
 - Modifiers: `Ctrl`, `Shift`, `Alt`, `Win`
 - The ordinary key: any key name — `Space`, `F9`, `D`, `NumPad0`, `Oem3` (backtick)

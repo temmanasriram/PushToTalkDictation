@@ -16,7 +16,9 @@ public sealed class HotkeyWatcher : IDisposable
     private readonly GlobalKeyboardHook _hook;
     private readonly HotkeySettings _settings;
     private readonly ILogger<HotkeyWatcher> _logger;
-    private readonly HotkeyCombo _combo;
+
+    // Not readonly: the settings UI can change the combo and the timings while running.
+    private HotkeyCombo _combo;
 
     private readonly System.Windows.Forms.Timer _armTimer;   // modifiers-only hold threshold
     private readonly System.Windows.Forms.Timer _maxTimer;   // runaway guard
@@ -70,6 +72,32 @@ public sealed class HotkeyWatcher : IDisposable
         };
 
         _hook.KeyEvent += OnKeyEvent;
+    }
+
+    /// <summary>
+    /// Re-reads the hotkey settings after they change. Must run on the owning UI thread,
+    /// since it touches the WinForms timers the hook callback uses.
+    ///
+    /// Any hold in progress is abandoned rather than carried across the change: the combo
+    /// that started it may no longer exist, so there would be no key release that could
+    /// cleanly end it.
+    /// </summary>
+    public void Reconfigure()
+    {
+        var wasEnabled = _enabled;
+
+        if (_holding) EndHold(cancelled: true);
+        CancelArm();
+        _triggerDown = false;
+
+        _combo = HotkeyCombo.Parse(_settings.Combo);
+        _armTimer.Interval = Math.Max(1, _settings.ModifiersOnlyHoldMs);
+        _maxTimer.Interval = Math.Max(1000, _settings.MaxRecordingSeconds * 1000);
+
+        // Re-seed physical state: we may have missed key movement while resetting.
+        if (wasEnabled) _physicalModifiers = QueryModifiers();
+
+        _logger.LogInformation("Hotkey reconfigured to {Combo}.", _combo);
     }
 
     public void Enable()

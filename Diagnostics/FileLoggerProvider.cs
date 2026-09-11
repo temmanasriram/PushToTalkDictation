@@ -13,7 +13,9 @@ namespace PushToTalkDictation.Diagnostics;
 public sealed class FileLoggerProvider : ILoggerProvider
 {
     private readonly BlockingCollection<string> _queue = new(new ConcurrentQueue<string>(), 4096);
-    private readonly LogLevel _minimum;
+    // Not readonly: the settings UI can change the level while running. The logging
+    // builder is set to pass everything through so this is the only gate.
+    private volatile LogLevel _minimum;
     private readonly string _path;
     private readonly Thread _writer;
     private bool _disposed;
@@ -33,6 +35,13 @@ public sealed class FileLoggerProvider : ILoggerProvider
     public ILogger CreateLogger(string categoryName) => new FileLogger(this, categoryName);
 
     internal bool IsEnabled(LogLevel level) => level >= _minimum && level != LogLevel.None;
+
+    /// <summary>Changes the level in effect, without a restart.</summary>
+    public void SetMinimumLevel(LogLevel level)
+    {
+        _minimum = level;
+        Enqueue($"{DateTime.Now:HH:mm:ss.fff} [INF] FileLoggerProvider: Log level set to {level}.");
+    }
 
     internal void Enqueue(string line)
     {

@@ -116,14 +116,28 @@ knows nothing about either concrete type.
 Feeding a WAV file through `IAudioRecorder` is the easiest way to test engines
 deterministically — no microphone, identical input every run.
 
+## Adding a setting to the settings window
+
+Four edits, and the compiler finds three of them for you:
+
+1. The property on the relevant class in `Configuration/AppSettings.cs`.
+2. A line in `SettingsStore.Save` (so it is persisted when changed) and one in
+   `SettingsStore.CopyInto` (so Save applies it to the live instance). Both are explicit
+   lists rather than reflection, so a missing line is a silent no-op - add both.
+3. A control and a `Row(...)` call in the matching tab of `Tray/SettingsForm.cs`, plus the
+   read/write pair in `ReadFromDraft` and `WriteToDraft`.
+4. If it cannot take effect without a restart, add it to the comparison at the top of
+   `SettingsService.Apply` so the UI can say so.
+
+Whether a setting applies live comes down to whether its consumer re-reads it. Anything read
+per use - the whole of `Injection`, most of `Audio` - works with no extra code, because
+`CopyInto` mutates the nested settings objects those components already hold a reference to.
+Anything captured in a constructor needs a reconfigure path, as `HotkeyWatcher.Reconfigure`
+does for the combo and the timers.
+
 ## Ideas not yet built
 
 Notes on the obvious next features, and where they'd go.
-
-**Settings UI.** A `Form` opened from the tray menu. The blocker isn't the form, it's that
-settings are bound once at startup: you'd need `IOptionsMonitor` and a rebind path, and the
-hotkey watcher and the engine would both need to handle being reconfigured mid-session.
-Restarting the app after an edit is the honest interim answer.
 
 **Streaming / partial results.** Show text as you speak rather than on release. Moonshine and
 Zipformer both support streaming recognisers in sherpa-onnx (`OnlineRecognizer` rather than

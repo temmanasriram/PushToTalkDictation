@@ -76,28 +76,49 @@ internal static class Program
 
     private static ServiceProvider BuildServices()
     {
+        // Two layers, in order: the documented defaults, then the settings UI's overrides.
+        // Keeping them separate means the UI never has to rewrite appsettings.json and strip
+        // its comments - see SettingsStore. Environment variables still win over both.
+        var baseBuilder = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
+
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
+            .AddJsonFile(SettingsStore.FileName, optional: true, reloadOnChange: false)
             .AddEnvironmentVariables("PTTD_")
             .Build();
 
         var settings = new AppSettings();
         configuration.Bind(settings);
 
+        // What the settings UI diffs against, so it writes only genuine changes.
+        var baseline = new AppSettings();
+        baseBuilder.AddEnvironmentVariables("PTTD_").Build().Bind(baseline);
+
         var services = new ServiceCollection();
 
         services.AddSingleton(settings);
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(new SettingsStore(baseline));
+        services.AddSingleton<SettingsService>();
+
+        var level = Enum.TryParse<LogLevel>(settings.Logging.MinimumLevel, ignoreCase: true, out var parsed)
+            ? parsed
+            : LogLevel.Information;
+
+        // Registered so the settings UI can change the level without a restart.
+        var fileLogger = new FileLoggerProvider(settings.Logging.FilePath, level);
+        services.AddSingleton(fileLogger);
 
         services.AddLogging(builder =>
         {
-            var level = Enum.TryParse<LogLevel>(settings.Logging.MinimumLevel, ignoreCase: true, out var parsed)
-                ? parsed
-                : LogLevel.Information;
-
-            builder.SetMinimumLevel(level);
-            builder.AddProvider(new FileLoggerProvider(settings.Logging.FilePath, level));
+            // Trace, not the configured level: the provider above owns the filtering, so
+            // that it can be changed at runtime. Without this the builder's filter would
+            // still be pinned to whatever the level was at startup.
+            builder.SetMinimumLevel(LogLevel.Trace);
+            builder.AddProvider(fileLogger);
         });
 
         services.AddHttpClient(HttpSpeechToTextEngine.HttpClientName);
