@@ -1,0 +1,135 @@
+# Extending
+
+## Adding a speech-to-text engine
+
+The contract is one interface. `SpeechToTextEngineBase` gives you race-free lazy loading,
+lazy init on first use, and artefact stripping — derive from it rather than implementing
+`ISpeechToTextEngine` directly unless you need different lifecycle behaviour.
+
+```csharp
+using PushToTalkDictation.Audio;
+using PushToTalkDictation.Stt;
+
+public sealed class MyEngine : SpeechToTextEngineBase
+{
+    private readonly ILogger<MyEngine> _logger;
+    private MyNativeSession? _session;
+
+    public override string Name => "my-engine";
+
+    public MyEngine(AppSettings settings, ILogger<MyEngine> logger) => _logger = logger;
+
+    // Called at most once, guarded by a semaphore. Throw to surface a balloon tip.
+    protected override Task LoadAsync(CancellationToken ct) => Task.Run(() =>
+    {
+        _session = MyNativeSession.Load(/* path from settings */);
+    }, ct);
+
+    // The model is guaranteed loaded. Do the work off the calling thread.
+    protected override Task<string> RecognizeAsync(AudioClip clip, CancellationToken ct)
+        => Task.Run(() => _session!.Transcribe(clip.Samples, clip.SampleRate), ct);
+
+    protected override ValueTask DisposeCoreAsync()
+    {
+        _session?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}
+```
+
+Then register it — two edits:
+
+```csharp
+// Program.cs, in BuildServices()
+services.AddSingleton<MyEngine>();
+```
+
+```csharp
+// Stt/SpeechToTextEngineFactory.cs
+SttEngineKind.Mine => services.GetRequiredService<MyEngine>(),
+```
+
+…plus a value on the `SttEngineKind` enum in `Configuration/AppSettings.cs` and a settings
+class if it needs options. That's the whole extension surface.
+
+### What `AudioClip` gives you
+
+Whatever shape your engine wants:
+
+| Member | Shape |
+|---|---|
+| `clip.Samples` | `float[]`, mono, 16 kHz, normalised −1..1 — what sherpa-onnx and Whisper.net take |
+| `clip.SampleRate` | `int` |
+| `clip.Duration` | `TimeSpan` |
+| `clip.ToWavBytes()` | 16-bit PCM WAV with headers, in memory — for HTTP uploads |
+| `clip.WriteTempWavAsync()` | a temp file path — for engines that only accept files. **You delete it.** |
+| `clip.Rms` | for your own gating |
+
+### Contract requirements
+
+- **Thread-safe.** Called from the single pipeline consumer today, but don't assume that.
+- **Don't block.** The consumer is a background task, but blocking it stalls the queue and
+  the tray state. Wrap native blocking calls in `Task.Run`.
+- **Return `string.Empty`, don't throw, for "nothing recognised."** Throwing surfaces an error
+  balloon to the user, which is right for a missing model file and wrong for a quiet clip.
+- **Serialise if the native session isn't re-entrant.** Both shipped native engines hold a
+  `SemaphoreSlim(1,1)` around the decode call for this reason.
+
+### Two concrete cases from the original brief
+
+**A local whisper.cpp DLL wrapper.** If you're binding `whisper.dll` yourself rather than
+using Whisper.net, `LoadAsync` calls `whisper_init_from_file_with_params`, `RecognizeAsync`
+calls `whisper_full` over `clip.Samples` (whisper.cpp wants exactly mono f32 16 kHz — which
+is what `AudioClip` already is, no conversion needed) and concatenates `whisper_full_get_segment_text`.
+Keep the context pointer in a field and free it in `DisposeCoreAsync`. Copy the
+`SemaphoreSlim` pattern; a `whisper_context` is not re-entrant.
+
+**A local faster-whisper Python endpoint.** Already shipped as `HttpSpeechToTextEngine` —
+point `SpeechToText.Http.Endpoint` at it. If your server isn't OpenAI-compatible, the only
+methods to change are the multipart field names in `RecognizeAsync` and `ExtractText`.
+
+## Replacing other pieces
+
+Everything else is behind an interface too:
+
+| Interface | Swap it to… |
+|---|---|
+| `IAudioRecorder` | use a different capture API, add VAD-based auto-stop, or feed test audio from a file |
+| `ITextInjector` | inject via UI Automation instead of `SendInput`, or write to the clipboard only |
+
+Register your implementation in `Program.cs` in place of the existing one. `DictationController`
+knows nothing about either concrete type.
+
+Feeding a WAV file through `IAudioRecorder` is the easiest way to test engines
+deterministically — no microphone, identical input every run.
+
+## Ideas not yet built
+
+Notes on the obvious next features, and where they'd go.
+
+**Settings UI.** A `Form` opened from the tray menu. The blocker isn't the form, it's that
+settings are bound once at startup: you'd need `IOptionsMonitor` and a rebind path, and the
+hotkey watcher and the engine would both need to handle being reconfigured mid-session.
+Restarting the app after an edit is the honest interim answer.
+
+**Streaming / partial results.** Show text as you speak rather than on release. Moonshine and
+Zipformer both support streaming recognisers in sherpa-onnx (`OnlineRecognizer` rather than
+`OfflineRecognizer`). The hard part is injection, not recognition: you'd have to erase and
+retype as hypotheses are revised, which is destructive in an arbitrary target window. A
+preview overlay window is the safer design.
+
+**Per-application profiles.** `Win32.GetForegroundWindow` + `GetWindowThreadProcessId` are
+already declared in `Interop/Win32.cs` for this. Capture the foreground process at
+`HoldStarted`, key a settings lookup off it, and you can have different vocabulary,
+capitalisation, or trailing-space behaviour in a terminal versus a mail client.
+
+**Custom vocabulary / biasing.** sherpa-onnx transducer models support hotword boosting via
+`OfflineRecognizerConfig.HotwordsFile` and `HotwordsScore`. That's the cheapest real accuracy
+win for names, product terms and jargon — worth doing before reaching for a bigger model.
+
+**Punctuation and formatting commands.** "new line", "comma", "period" → post-process in
+`DictationController.ConsumeAsync` between transcription and injection. Keep it out of the
+engines; it's a text transform, not recognition.
+
+**Dictionary of replacements.** Same place — a simple map applied after `Normalize`, to fix
+the handful of terms your model reliably gets wrong.

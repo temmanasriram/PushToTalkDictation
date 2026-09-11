@@ -1,0 +1,9 @@
+bin/
+obj/
+models/*
+!models/README.txt
+logs/
+
+# Visual Studio / Rider user state (machine-local, never shared)
+.vs/
+*.user

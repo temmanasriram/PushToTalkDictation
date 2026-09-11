@@ -1,0 +1,85 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <PlatformTarget>x64</PlatformTarget>
+
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RootNamespace>PushToTalkDictation</RootNamespace>
+    <AssemblyName>PushToTalkDictation</AssemblyName>
+
+    <!-- Tray app: never show a console window -->
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Audio capture (WASAPI) -->
+    <PackageReference Include="NAudio" Version="2.2.1" />
+
+    <!-- Default engine: sherpa-onnx (Moonshine / Parakeet / Zipformer / SenseVoice, all offline ONNX) -->
+    <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.13.5" />
+
+    <!-- Optional engine: whisper.cpp via Whisper.net (GGML models) -->
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+
+    <!-- Composition root -->
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!--
+    Models are 200 MB+ and gitignored, so they are deliberately NOT copied on every build:
+    that would double every incremental build and duplicate the model per configuration.
+    Dev builds find them by probing (Stt/ModelPathResolver.cs), which reaches the repo-root
+    models\ folder that scripts\download-models.ps1 writes to.
+
+    `dotnet publish` is the shipping path, so there the models ARE copied next to the
+    executable — the publish folder is then self-contained with respect to model assets and
+    can be zipped and moved to another machine as a unit.
+    Set PublishModels=false to publish the binaries alone.
+  -->
+  <PropertyGroup>
+    <PublishModels Condition="'$(PublishModels)' == ''">true</PublishModels>
+    <ModelSourceDirectory Condition="'$(ModelSourceDirectory)' == ''">$(MSBuildProjectDirectory)\models</ModelSourceDirectory>
+  </PropertyGroup>
+
+  <Target Name="CopyModelsToPublish"
+          AfterTargets="Publish"
+          Condition="'$(PublishModels)' == 'true' And Exists('$(ModelSourceDirectory)')">
+    <ItemGroup>
+      <ModelFile Include="$(ModelSourceDirectory)\**\*" Exclude="$(ModelSourceDirectory)\README.txt" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(ModelFile)"
+          DestinationFiles="@(ModelFile->'$(PublishDir)models\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+
+    <Message Importance="high"
+             Text="Published @(ModelFile->Count()) model file(s) into $(PublishDir)models\." />
+    <Warning Condition="'@(ModelFile)' == ''"
+             Text="$(ModelSourceDirectory) is empty - the published app will have no model. Run scripts\download-models.ps1 before publishing." />
+  </Target>
+
+</Project>

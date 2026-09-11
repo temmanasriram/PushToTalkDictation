@@ -1,0 +1,46 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["build", "${workspaceFolder}/PushToTalkDictation.csproj", "-consoleLoggerParameters:NoSummary"],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "build release",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["build", "${workspaceFolder}/PushToTalkDictation.csproj", "-c", "Release", "-consoleLoggerParameters:NoSummary"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "restore",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["restore", "${workspaceFolder}/PushToTalkDictation.csproj"],
+      "problemMatcher": []
+    },
+    {
+      "label": "download model (moonshine-base)",
+      "type": "shell",
+      "command": "pwsh",
+      "args": ["-File", "${workspaceFolder}/scripts/download-models.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "tail log",
+      "type": "shell",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Get-Content -Wait -Tail 50 \"$env:LOCALAPPDATA\\PushToTalkDictation\\logs\\app.log\""
+      ],
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}
