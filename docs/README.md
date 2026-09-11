@@ -5,6 +5,7 @@ transcribes locally, and types the result into the focused window.
 
 | Doc | Read it when |
 |---|---|
+| [**user-guide.md**](user-guide.md) | **You just want to use it** — install, the hotkey, settings, limits |
 | [getting-started.md](getting-started.md) | Setting up the dev box, first build, debugging in VS / VS Code |
 | [architecture.md](architecture.md) | You need the component map, the data flow, or the threading contract |
 | [configuration.md](configuration.md) | You want to change behaviour without touching code |

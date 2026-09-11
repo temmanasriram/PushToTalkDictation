@@ -25,6 +25,8 @@ Switching **Off** in the tray menu uninstalls the keyboard hook and releases the
 taking the process from ~310 MB to ~75 MB; switching **On** reloads it in about a second.
 Set `SpeechToText.UnloadOnInactive: false` to keep it resident instead.
 
+Full usage instructions are in the [user guide](docs/user-guide.md).
+
 The model stays in `.\models` and is found from there — it is not copied into `bin\` on every
 build. To ship, `dotnet publish -c Release` produces a folder with the model beside the
 executable that can be zipped and moved to another machine as a unit. Details in
@@ -36,6 +38,7 @@ Everything lives in [`docs/`](docs/README.md):
 
 | Doc | Covers |
 |---|---|
+| [**user-guide.md**](docs/user-guide.md) | **Using the app** — install, the hotkey, every setting, limits |
 | [getting-started.md](docs/getting-started.md) | Prerequisites, first build, debugging in VS / VS Code |
 | [architecture.md](docs/architecture.md) | Components, data flow, threading contract, design rationale |
 | [configuration.md](docs/configuration.md) | Every `appsettings.json` key |
