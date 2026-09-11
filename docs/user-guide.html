@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Push-to-Talk Dictation — User guide</title>
+<style>
+  /* Self-contained by design: this file is opened from disk (file://) by the tray menu,
+     so it must never reference a network resource. No fonts, no CSS, no scripts. */
+  :root {
+    --bg: #fbfaf8;
+    --surface: #ffffff;
+    --border: #e3e0da;
+    --text: #22201d;
+    --muted: #6b665e;
+    --accent: #9a5b2d;
+    --accent-soft: #f3ebe3;
+    --code-bg: #f4f2ee;
+    --warn-bg: #fdf6e7;
+    --warn-border: #e0c070;
+    --kbd-bg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17161a;
+      --surface: #1e1d22;
+      --border: #322f38;
+      --text: #e9e6e2;
+      --muted: #a09a93;
+      --accent: #e0a172;
+      --accent-soft: #2a2228;
+      --code-bg: #24222a;
+      --warn-bg: #2a2418;
+      --warn-border: #6d5a2c;
+      --kbd-bg: #2a2830;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px 96px; }
+
+  header {
+    padding: 48px 0 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 36px;
+  }
+  header h1 { margin: 0 0 8px; font-size: 2rem; letter-spacing: -0.02em; }
+  header p { margin: 0; color: var(--muted); font-size: 1.05rem; }
+  .ver { display: inline-block; margin-top: 14px; padding: 3px 10px; border-radius: 999px;
+         background: var(--accent-soft); color: var(--accent); font-size: .8rem; font-weight: 600; }
+
+  nav {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 44px;
+  }
+  nav h2 { margin: 0 0 10px; font-size: .78rem; text-transform: uppercase;
+           letter-spacing: .09em; color: var(--muted); }
+  nav ol { margin: 0; padding-left: 1.3em; columns: 2; column-gap: 32px; }
+  nav li { margin: 4px 0; break-inside: avoid; }
+  nav a { color: var(--text); text-decoration: none; border-bottom: 1px solid transparent; }
+  nav a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+  section { margin: 0 0 56px; scroll-margin-top: 20px; }
+  h2 { font-size: 1.4rem; margin: 0 0 18px; padding-bottom: 8px;
+       border-bottom: 2px solid var(--accent-soft); letter-spacing: -0.01em; }
+  h3 { font-size: 1.08rem; margin: 32px 0 10px; }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 14px; padding-left: 1.5em; }
+  li { margin: 5px 0; }
+  a { color: var(--accent); }
+
+  .lede { font-size: 1.05rem; color: var(--muted); }
+
+  /* The one thing a new user needs. */
+  .hero {
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 10px;
+    padding: 22px 26px;
+    margin: 0 0 22px;
+  }
+  .hero p { margin: 0; font-size: 1.18rem; font-weight: 600; }
+  .hero .sub { margin-top: 8px; font-size: .95rem; font-weight: 400; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; margin: 0 0 20px; font-size: .94rem; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border);
+           vertical-align: top; }
+  th { font-weight: 600; font-size: .8rem; text-transform: uppercase;
+       letter-spacing: .05em; color: var(--muted); }
+  tbody tr:last-child td { border-bottom: none; }
+  .scroll { overflow-x: auto; margin: 0 0 20px; }
+  .scroll table { margin: 0; }
+
+  code {
+    font: .88em/1.5 ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, monospace;
+    background: var(--code-bg); padding: 1px 5px; border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; margin: 0 0 18px;
+  }
+  pre code { background: none; padding: 0; font-size: .86rem; }
+
+  kbd {
+    font: 600 .82em/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+    background: var(--kbd-bg); border: 1px solid var(--border);
+    border-bottom-width: 2px; border-radius: 5px;
+    padding: 3px 6px; white-space: nowrap;
+  }
+
+  .note {
+    background: var(--warn-bg); border: 1px solid var(--warn-border);
+    border-radius: 8px; padding: 13px 17px; margin: 0 0 18px; font-size: .94rem;
+  }
+  .note p:last-child { margin-bottom: 0; }
+
+  /* Tray icon status colours */
+  .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%;
+         margin-right: 7px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.2); }
+  .dot-grey  { background: #78787d; }
+  .dot-blue  { background: #409eff; }
+  .dot-red   { background: #e84242; }
+  .dot-amber { background: #f5b041; }
+
+  .menu {
+    font: .88rem/1.9 ui-monospace, SFMono-Regular, Consolas, monospace;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px; margin: 0 0 18px; max-width: 380px;
+  }
+  .menu .sep { border-top: 1px solid var(--border); margin: 6px -16px; }
+  .menu .dim { color: var(--muted); }
+  .menu .act { font-weight: 700; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 22px;
+           color: var(--muted); font-size: .88rem; }
+
+  @media (max-width: 620px) {
+    nav ol { columns: 1; }
+    .wrap { padding: 0 16px 64px; }
+    header { padding-top: 32px; }
+    header h1 { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Push-to-Talk Dictation</h1>
+  <p class="lede">Hold a key, speak, let go — your words are typed into whatever window you
+     were using. Nothing is sent anywhere: the speech model runs on your own machine.</p>
+  <span class="ver">User guide</span>
+</header>
+
+<nav>
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#install">Install</a></li>
+    <li><a href="#run">Run it</a></li>
+    <li><a href="#shortcut">The shortcut</a></li>
+    <li><a href="#tray">The tray menu</a></li>
+    <li><a href="#config">Configuration</a></li>
+    <li><a href="#logs">Logs</a></li>
+    <li><a href="#limits">What it cannot do</a></li>
+    <li><a href="#trouble">If something is wrong</a></li>
+    <li><a href="#uninstall">Uninstall</a></li>
+  </ol>
+</nav>
+
+<section id="shortcut-top">
+  <div class="hero">
+    <p>Hold <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd>, speak, release.</p>
+    <p class="sub">That is the whole interaction. Everything else on this page is detail.</p>
+  </div>
+</section>
+
+<section id="install">
+  <h2>1. Install</h2>
+
+  <h3>What you need</h3>
+  <div class="scroll">
+  <table>
+    <tbody>
+      <tr><td><strong>Windows</strong></td><td>10 (1809 or newer) or 11, <strong>64-bit</strong></td></tr>
+      <tr><td><strong>.NET 8 Desktop Runtime</strong></td>
+          <td><code>winget install Microsoft.DotNet.DesktopRuntime.8</code> — not needed if you publish self-contained</td></tr>
+      <tr><td><strong>A microphone</strong></td><td>Settings → System → Sound → Input</td></tr>
+      <tr><td><strong>Disk</strong></td><td>~280 MB for the speech model, ~30 MB for the app</td></tr>
+      <tr><td><strong>RAM</strong></td><td>~310 MB while listening, ~75 MB while switched off</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>You also need the <strong>.NET 8 SDK</strong> to build it
+     (<code>winget install Microsoft.DotNet.SDK.8</code>), since there is no pre-built download.</p>
+
+  <h3>Build a portable install</h3>
+  <p>This is the way to set it up for everyday use. The result is a single folder you can put
+     anywhere — including a USB stick or another machine.</p>
+<pre><code>cd C:\source\STTService
+
+dotnet restore
+.\scripts\download-models.ps1     # ~280 MB, a few minutes
+dotnet publish -c Release</code></pre>
+  <p>Your install is now in <code>bin\Release\net8.0-windows\win-x64\publish\</code>. Copy that
+     folder wherever you want it — <code>C:\Apps\PushToTalkDictation\</code> is a reasonable
+     choice. It holds the app, its settings file, this guide and the speech model together, so
+     it works from any location.</p>
+  <div class="note">
+    <p><strong>Download the model before publishing.</strong> Publishing with no model prints a
+       build warning and produces an app that cannot transcribe anything.</p>
+  </div>
+  <p><strong>No .NET on the target machine?</strong> Publish self-contained instead — about
+     460 MB instead of 300 MB, but it needs nothing installed:</p>
+<pre><code>dotnet publish -c Release --self-contained</code></pre>
+
+  <h3>Or run it straight from the build folder</h3>
+  <p>For quick testing, skip publishing:</p>
+<pre><code>dotnet build -c Release
+.\bin\Release\net8.0-windows\win-x64\PushToTalkDictation.exe</code></pre>
+  <p>The model stays in <code>.\models</code> and is found from there. Fine for trying it out,
+     but the folder is not movable — use <code>dotnet publish</code> for a real install.</p>
+</section>
+
+<section id="run">
+  <h2>2. Run it</h2>
+  <p>Double-click <strong><code>PushToTalkDictation.exe</code></strong>.</p>
+  <p>Nothing appears to happen — that is correct. There is no window. Look for a
+     <strong>microphone icon in your system tray</strong>, next to the clock. You may need to
+     click the <code>^</code> arrow to see hidden icons; drag it out if you want it always
+     visible.</p>
+  <p>The icon colour is the whole status display:</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Colour</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dot dot-grey"></span><strong>Grey</strong></td>
+          <td>Off — not listening, no keyboard hook installed</td></tr>
+      <tr><td><span class="dot dot-blue"></span><strong>Blue</strong></td>
+          <td>Ready — hold the hotkey to talk</td></tr>
+      <tr><td><span class="dot dot-red"></span><strong>Red</strong></td>
+          <td>Recording right now</td></tr>
+      <tr><td><span class="dot dot-amber"></span><strong>Amber</strong></td>
+          <td>Transcribing what you just said</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Only one copy runs at a time. Launching it again shows <em>"Push-to-Talk Dictation is
+     already running"</em> — find the existing icon in your tray.</p>
+
+  <h3>Start it automatically at login</h3>
+  <p>Press <kbd>Win</kbd>+<kbd>R</kbd>, type <code>shell:startup</code>, press Enter, and drop a
+     shortcut to the published <code>.exe</code> into the folder that opens.</p>
+  <p>It works from anywhere: the app finds its settings and model relative to its own location,
+     never the working directory.</p>
+</section>
+
+<section id="shortcut">
+  <h2>3. The shortcut</h2>
+  <div class="hero">
+    <p>Hold <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd>, speak, release.</p>
+  </div>
+  <p>It is <em>hold-to-talk</em>, like a walkie-talkie — not a toggle. Keep holding while you
+     speak; the moment you let go, transcription starts and the text is typed.</p>
+  <ol>
+    <li>Click into wherever you want the text — a document, a chat box, a terminal.</li>
+    <li>Hold <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Space</kbd>. The icon turns
+        <span class="dot dot-red"></span><strong>red</strong>.</li>
+    <li>Speak normally.</li>
+    <li>Release. The icon turns <span class="dot dot-amber"></span><strong>amber</strong>, then
+        your words appear.</li>
+  </ol>
+  <p>For a short sentence the wait is a fraction of a second.</p>
+
+  <h3>Things worth knowing</h3>
+  <p><strong>The text goes where the cursor is when the text <em>arrives</em>, not when you
+     started talking.</strong> Click into another window while it is still transcribing and the
+     text lands there instead. Stay put until it appears.</p>
+  <p><strong>Speak immediately after pressing and the first word can be clipped</strong> — but
+     only on your very first dictation after launching. Opening the microphone takes about
+     0.7 s the first time and under 0.1 s after that. If the first attempt of a session loses a
+     word, hold the key for a beat before speaking, or dictate one throwaway phrase first.</p>
+  <p><strong>You get a trailing space</strong>, so consecutive dictations do not run together.
+     Turn it off with <code>Injection.AppendTrailingSpace</code>.</p>
+  <p><strong>Long passages are pasted, not typed.</strong> At 240 characters or more the app
+     pastes via the clipboard, because typing that much is visibly slow. Your previous clipboard
+     contents are put back afterwards.</p>
+  <p><strong>An accidental tap produces nothing.</strong> Anything under 250 ms, or too quiet to
+     be speech, is discarded before it ever reaches the model.</p>
+  <p><strong>A stuck key cannot record forever</strong> — recording stops on its own after
+     2 minutes.</p>
+  <p><strong>The space is swallowed</strong>, so the window you are typing into never receives
+     it. <kbd>Ctrl</kbd> and <kbd>Shift</kbd> are always passed through, so every other shortcut
+     on your system keeps working.</p>
+
+  <h3>Punctuation</h3>
+  <div class="note">
+    <p><strong>The default model does not punctuate.</strong> Moonshine Base transcribes the
+       words it hears and nothing else, so <em>"Hello comma this is a test period"</em> comes out
+       as <code>Hello comma this is a test period</code> — the punctuation words are typed out
+       literally, and no commas or full stops are added on their own either. You will be adding
+       punctuation by hand.</p>
+  </div>
+  <p>If that matters more to you than speed, switch to a punctuating model — the Whisper-family
+     engines and SenseVoice add punctuation and casing. See <code>docs/models.md</code>.</p>
+  <p>There are no spoken editing commands in any case (no "delete that", no "new paragraph");
+     the app types what was recognised and nothing else.</p>
+</section>
+
+<section id="tray">
+  <h2>4. The tray menu</h2>
+  <p><strong>Left-click or right-click</strong> the icon:</p>
+  <div class="menu">
+    <div class="dim">Push-to-Talk Dictation 1.0.0</div>
+    <div class="sep"></div>
+    <div class="act">Toggle Active (On)</div>
+    <div class="sep"></div>
+    <div class="dim">Ready - hold Ctrl+Shift+Space</div>
+    <div class="dim">Engine: sherpa-onnx (Moonshine)</div>
+    <div class="dim">Model: loaded in memory</div>
+    <div class="dim">Hold: Ctrl+Shift+Space</div>
+    <div class="sep"></div>
+    <div class="act">User guide</div>
+    <div class="act">Open settings file...</div>
+    <div class="act">Open log folder...</div>
+    <div class="sep"></div>
+    <div class="act">Exit</div>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Item</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Toggle Active</strong></td><td>Turns dictation on or off — see below</td></tr>
+      <tr><td><em>Ready - hold …</em></td><td>Current status, the same information as the icon colour</td></tr>
+      <tr><td><em>Engine: …</em></td><td>Which speech engine is in use</td></tr>
+      <tr><td><em>Model: …</em></td><td>Whether the model is currently in memory</td></tr>
+      <tr><td><em>Hold: …</em></td><td>Your current hotkey</td></tr>
+      <tr><td><strong>User guide</strong></td><td>Opens this page</td></tr>
+      <tr><td><strong>Open settings file…</strong></td><td>Opens <code>appsettings.json</code> in your text editor</td></tr>
+      <tr><td><strong>Open log folder…</strong></td><td>Opens the folder containing <code>app.log</code></td></tr>
+      <tr><td><strong>Exit</strong></td><td>Quits completely</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>The greyed-out lines are information, not buttons. The version at the top is the one to
+     quote if you report a problem.</p>
+
+  <h3>Turning it off, and what that saves</h3>
+  <p><strong>Off is genuinely off.</strong> The keyboard hook is removed from Windows entirely —
+     the app is not watching your typing at all, and the hotkey does nothing.</p>
+  <p>It also <strong>releases the speech model from memory</strong>, dropping the app from
+     roughly 310 MB to 75 MB. Switching back on reloads it in about a second.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>State</th><th>Memory</th></tr></thead>
+    <tbody>
+      <tr><td>On, ready to dictate</td><td>~310 MB</td></tr>
+      <tr><td>Off</td><td>~75 MB</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Prefer instant switching over getting the memory back? Set
+     <code>SpeechToText.UnloadOnInactive</code> to <code>false</code> and the model stays
+     loaded.</p>
+  <p>Anything you already said still gets typed — switching off does not discard an utterance
+     that is mid-transcription.</p>
+</section>
+
+<section id="config">
+  <h2>5. Configuration</h2>
+
+  <h3>Where the file is</h3>
+  <p><strong><code>appsettings.json</code>, in the same folder as the <code>.exe</code>.</strong>
+     The reliable way to open it: <strong>tray icon → Open settings file…</strong></p>
+<pre><code>C:\Apps\PushToTalkDictation\appsettings.json      (a published install)</code></pre>
+  <p>You can use <code>//</code> comments and trailing commas in it.</p>
+  <div class="note">
+    <p><strong>Changes take effect when you restart the app.</strong> There is no live reload and
+       no settings window — edit the file, then <strong>Exit</strong> from the tray menu and
+       start it again.</p>
+  </div>
+  <p>If the app stops appearing in your tray after an edit, you almost certainly have a JSON
+     syntax error — a missing comma or brace. Run the <code>.exe</code> from a PowerShell window
+     and it will tell you.</p>
+
+  <h3>The settings you are most likely to want</h3>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Setting</th><th>Default</th><th>Change it when</th></tr></thead>
+    <tbody>
+      <tr><td><code>Hotkey.Combo</code></td><td><code>"Ctrl+Shift+Space"</code></td>
+          <td>The default clashes with an app you use</td></tr>
+      <tr><td><code>SpeechToText.UnloadOnInactive</code></td><td><code>true</code></td>
+          <td>You want instant on/off instead of the memory back</td></tr>
+      <tr><td><code>Injection.AppendTrailingSpace</code></td><td><code>true</code></td>
+          <td>You do not want an automatic trailing space</td></tr>
+      <tr><td><code>Injection.ClipboardThreshold</code></td><td><code>240</code></td>
+          <td>Set <code>0</code> if you use a clipboard manager, or if a terminal ignores <kbd>Ctrl</kbd>+<kbd>V</kbd></td></tr>
+      <tr><td><code>Audio.SilenceRmsThreshold</code></td><td><code>0.0025</code></td>
+          <td>Raise to <code>0.005</code> if stray taps produce phantom text; lower to <code>0.001</code> if quiet speech is dropped</td></tr>
+      <tr><td><code>Audio.DeviceId</code></td><td><code>null</code></td>
+          <td>You have several microphones and it picked the wrong one</td></tr>
+      <tr><td><code>StartActive</code></td><td><code>true</code></td>
+          <td>You want it to start switched <strong>off</strong> every time</td></tr>
+      <tr><td><code>Hotkey.MaxRecordingSeconds</code></td><td><code>120</code></td>
+          <td>You dictate for longer than two minutes at a stretch</td></tr>
+      <tr><td><code>Logging.MinimumLevel</code></td><td><code>"Information"</code></td>
+          <td>Set <code>"Debug"</code> while diagnosing anything</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Every key, including those not listed here, is documented in
+     <code>docs/configuration.md</code>.</p>
+
+  <h3>Changing the hotkey</h3>
+<pre><code>"Hotkey": {
+  "Combo": "Ctrl+Alt+D"
+}</code></pre>
+  <p>Write modifiers and one ordinary key joined by <code>+</code>:</p>
+  <ul>
+    <li>Modifiers: <code>Ctrl</code>, <code>Shift</code>, <code>Alt</code>, <code>Win</code></li>
+    <li>The ordinary key: any key name — <code>Space</code>, <code>F9</code>, <code>D</code>,
+        <code>NumPad0</code>, <code>Oem3</code> (backtick)</li>
+  </ul>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Example</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><code>"Ctrl+Shift+Space"</code></td><td>The default</td></tr>
+      <tr><td><code>"Ctrl+Alt+D"</code></td><td>Usually free of conflicts</td></tr>
+      <tr><td><code>"F9"</code></td><td>A single key, no modifiers — the fastest to reach</td></tr>
+      <tr><td><code>"Ctrl+Shift"</code></td>
+          <td>Modifiers only: hold both for 250 ms to start. <strong>Not recommended</strong> —
+              it collides with the Windows keyboard-layout switcher</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Modifiers must match <strong>exactly</strong> — a <code>Ctrl+Shift</code> hotkey will not
+     fire while you are also holding <kbd>Alt</kbd>. That is deliberate, so your other shortcuts
+     keep working.</p>
+  <p>Worth avoiding: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Space</kbd> is a non-breaking space in
+     Word and a parameter hint in Visual Studio. The app swallows the keystroke so those apps
+     never see it, but if you dictate heavily into them, pick something quieter.</p>
+
+  <h3>Changing a setting without editing the file</h3>
+  <p>Any setting can be overridden with an environment variable — <code>PTTD_</code> in front,
+     <code>__</code> between levels. Useful for a one-off:</p>
+<pre><code>$env:PTTD_Logging__MinimumLevel = "Debug"
+$env:PTTD_StartActive = "false"
+.\PushToTalkDictation.exe</code></pre>
+  <p>These win over the file.</p>
+
+  <h3>Using a different speech model</h3>
+  <p>The default is <strong>Moonshine Base (English)</strong>, chosen because it is the fastest
+     option for short dictation. If you need better accuracy on technical vocabulary or a strong
+     accent:</p>
+<pre><code>.\scripts\download-models.ps1 -Model parakeet</code></pre>
+  <p>…then point the settings at it. <code>docs/models.md</code> covers the full list and the
+     trade-offs.</p>
+</section>
+
+<section id="logs">
+  <h2>6. Logs</h2>
+  <p><strong>Tray icon → Open log folder…</strong>, or:</p>
+<pre><code>%LOCALAPPDATA%\PushToTalkDictation\logs\app.log</code></pre>
+  <p>This is the first place to look when something does not work — it tells you which stage
+     failed: hearing you, transcribing, or typing. Set <code>Logging.MinimumLevel</code> to
+     <code>"Debug"</code> first and restart; you then get the microphone it chose, timings for
+     every phrase, and a line for every clip discarded as silence.</p>
+  <p>Once the file passes 4 MB, the next launch archives it and starts a fresh one.</p>
+</section>
+
+<section id="limits">
+  <h2>7. What it cannot do</h2>
+  <p>Not bugs — consequences of how Windows works:</p>
+  <p><strong>It cannot type into programs running as administrator.</strong> Task Manager, an
+     elevated terminal, anything started with <em>Run as administrator</em> — Windows silently
+     blocks input from a normal program into an elevated one. Test in Notepad to confirm this is
+     what you are hitting. Running the app itself as administrator fixes it, at the cost of a UAC
+     prompt every launch.</p>
+  <p><strong>It does nothing on the lock screen, the UAC prompt, or the sign-in screen.</strong>
+     Those are protected by design and cannot be reached.</p>
+  <p><strong>No live captions.</strong> Text appears when you release the key, not as you
+     speak.</p>
+  <p><strong>No spoken commands.</strong> It transcribes; it does not take instructions.</p>
+  <p><strong>Your antivirus may flag it.</strong> A program that watches the keyboard and
+     synthesises keystrokes has the same shape as a keylogger — because at the Windows level,
+     that is exactly the machinery it uses. Everything stays on your machine and no audio ever
+     leaves it, but you may need to add an exclusion. On a work machine, expect to involve
+     whoever manages it.</p>
+</section>
+
+<section id="trouble">
+  <h2>8. If something is wrong</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Symptom</th><th>Most likely cause</th></tr></thead>
+    <tbody>
+      <tr><td>No tray icon at all</td>
+          <td>It failed to start. Check the log, or run the <code>.exe</code> from PowerShell to
+              see the error — usually a typo in <code>appsettings.json</code>.</td></tr>
+      <tr><td>Icon is grey</td>
+          <td>Switched off. Click it → <strong>Toggle Active</strong>. Starts grey every time?
+              Set <code>StartActive: true</code>.</td></tr>
+      <tr><td>Icon is blue but the hotkey does nothing</td>
+          <td>Another app owns that key combination — try <code>"Ctrl+Alt+D"</code>. Or the
+              window you are typing into is elevated.</td></tr>
+      <tr><td>Recording works, no text appears</td>
+          <td>The target window is elevated, or you clicked into a different window while it was
+              transcribing.</td></tr>
+      <tr><td>Text appears but triggers menus and shortcuts</td>
+          <td>A modifier key was still held when typing began. Release the keys deliberately, or
+              raise <code>Injection.WaitForModifierReleaseMs</code>.</td></tr>
+      <tr><td>Phantom text from an accidental tap</td>
+          <td>Raise <code>Audio.SilenceRmsThreshold</code> to <code>0.005</code>.</td></tr>
+      <tr><td>Quiet speech is ignored</td>
+          <td>Lower <code>Audio.SilenceRmsThreshold</code> to <code>0.001</code>.</td></tr>
+      <tr><td>First word of the first dictation is missing</td>
+          <td>The microphone takes ~0.7 s to open the first time. Pause briefly before
+              speaking.</td></tr>
+      <tr><td>Characters dropped in one specific app</td>
+          <td>Set <code>Injection.KeystrokeDelayMs</code> to <code>1</code> or
+              <code>2</code>.</td></tr>
+      <tr><td>Slow on every phrase</td>
+          <td>The model is too large for the machine — see <code>docs/models.md</code>.</td></tr>
+      <tr><td>Wrong microphone</td>
+          <td>Set <code>Audio.DeviceId</code>, or fix your Windows default input device.</td></tr>
+      <tr><td>First phrase after switching On is slow, every time</td>
+          <td>Expected — the model reloads. Set <code>UnloadOnInactive: false</code> to keep it
+              in memory.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Symptom-by-symptom detail, with the log lines to look for, is in
+     <code>docs/troubleshooting.md</code>.</p>
+</section>
+
+<section id="uninstall">
+  <h2>9. Uninstall</h2>
+  <p>There is no installer, so there is nothing to uninstall:</p>
+  <ol>
+    <li><strong>Exit</strong> from the tray menu.</li>
+    <li>Delete the application folder.</li>
+    <li>Delete <code>%LOCALAPPDATA%\PushToTalkDictation</code> (logs only).</li>
+    <li>Remove the shortcut from <code>shell:startup</code> if you made one.</li>
+  </ol>
+  <p>Nothing is written to the registry.</p>
+</section>
+
+<footer>
+  <p>Push-to-Talk Dictation — everything runs locally; no audio leaves your machine.
+     The version you are running is shown at the top of the tray menu.</p>
+</footer>
+
+</div>
+</body>
+</html>

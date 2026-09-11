@@ -56,7 +56,7 @@ internal static class Program
             // Built on the UI thread on purpose: the hook and the WinForms timers
             // inside HotkeyWatcher require the thread that pumps messages.
             var tray = services.GetRequiredService<TrayApplicationContext>();
-            logger.LogInformation("Push-to-Talk Dictation started.");
+            logger.LogInformation("{App} started.", AppInfo.NameAndVersion);
             Application.Run(tray);
         }
         catch (Exception ex)

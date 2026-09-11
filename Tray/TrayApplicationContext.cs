@@ -37,6 +37,8 @@ public sealed class TrayApplicationContext : ApplicationContext
         _uiContext = SynchronizationContext.Current
                      ?? throw new InvalidOperationException("TrayApplicationContext must be built on the UI thread.");
 
+        var versionItem = new ToolStripMenuItem(AppInfo.NameAndVersion) { Enabled = false };
+
         _toggleItem = new ToolStripMenuItem("Toggle Active (Off)")
         {
             CheckOnClick = false
@@ -48,6 +50,9 @@ public sealed class TrayApplicationContext : ApplicationContext
         var engineItem = new ToolStripMenuItem($"Engine: {_controller.EngineName}") { Enabled = false };
         _modelItem = new ToolStripMenuItem("Model: -") { Enabled = false };
         var hotkeyItem = new ToolStripMenuItem($"Hold: {_controller.Combo}") { Enabled = false };
+
+        var guideItem = new ToolStripMenuItem("User guide");
+        guideItem.Click += (_, _) => OpenUserGuide();
 
         var settingsItem = new ToolStripMenuItem("Open settings file...");
         settingsItem.Click += (_, _) => OpenSettings();
@@ -61,6 +66,8 @@ public sealed class TrayApplicationContext : ApplicationContext
         _menu = new ContextMenuStrip();
         _menu.Items.AddRange(
         [
+            versionItem,
+            new ToolStripSeparator(),
             _toggleItem,
             new ToolStripSeparator(),
             _statusItem,
@@ -68,6 +75,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             _modelItem,
             hotkeyItem,
             new ToolStripSeparator(),
+            guideItem,
             settingsItem,
             logItem,
             new ToolStripSeparator(),
@@ -81,7 +89,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _notifyIcon = new NotifyIcon
         {
             Icon = _icons.Inactive,
-            Text = "Push-to-Talk Dictation",
+            Text = AppInfo.ProductName,
             Visible = true,
             ContextMenuStrip = _menu
         };
@@ -139,6 +147,27 @@ public sealed class TrayApplicationContext : ApplicationContext
     }
 
     // ---------------------------------------------------------------- actions
+
+    /// <summary>
+    /// Opens the HTML guide that ships beside the executable, in the default browser.
+    /// A missing file means the app was copied without it, so say so rather than
+    /// silently doing nothing.
+    /// </summary>
+    private void OpenUserGuide()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, AppInfo.UserGuideFileName);
+
+        if (!File.Exists(path))
+        {
+            _logger.LogWarning("User guide not found at '{Path}'.", path);
+            _notifyIcon.ShowBalloonTip(5000, AppInfo.ProductName,
+                $"{AppInfo.UserGuideFileName} is missing from the application folder.",
+                ToolTipIcon.Warning);
+            return;
+        }
+
+        TryStart(path);
+    }
 
     private void OpenSettings()
     {

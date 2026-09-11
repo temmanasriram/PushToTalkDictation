@@ -6,6 +6,10 @@ Nothing is sent anywhere: the speech model runs on your own machine.
 This guide is for using the app. To change how it works internally, see
 [architecture.md](architecture.md) and [extending.md](extending.md).
 
+> This page and [user-guide.html](user-guide.html) are the same guide. The HTML copy is the
+> one that ships beside the executable and opens from the tray menu's **User guide** item;
+> this Markdown copy is here to read on GitHub. **Edit both together.**
+
 ---
 
 ## 1. Install
@@ -43,8 +47,8 @@ bin\Release\net8.0-windows\win-x64\publish\
 ```
 
 Copy that folder wherever you want it — `C:\Apps\PushToTalkDictation\` is a reasonable
-choice. It holds the app, its settings file and the speech model together, so it works from
-any location.
+choice. It holds the app, its settings file, this guide and the speech model together, so it
+works from any location.
 
 > **Download the model before publishing.** Publishing with no model prints a build warning
 > and produces an app that cannot transcribe anything.
@@ -163,16 +167,18 @@ app types what was recognised and nothing else.
 
 | Item | What it does |
 |---|---|
+| *Push-to-Talk Dictation 1.0.0* | The version you are running — quote it if you report a problem |
 | **Toggle Active (On/Off)** | Turns dictation on or off — see below |
 | *Ready - hold Ctrl+Shift+Space* | Current status, the same information as the icon colour |
 | *Engine: …* | Which speech engine is in use |
 | *Model: …* | Whether the model is currently in memory |
 | *Hold: …* | Your current hotkey |
+| **User guide** | Opens this guide (the HTML copy) in your browser |
 | **Open settings file…** | Opens `appsettings.json` in your text editor |
 | **Open log folder…** | Opens the folder containing `app.log` |
 | **Exit** | Quits completely |
 
-The middle four lines are greyed out because they are information, not buttons.
+The greyed-out lines are information, not buttons.
 
 ### Turning it off, and what that saves
 
