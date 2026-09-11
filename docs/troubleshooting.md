@@ -98,6 +98,13 @@ csproj, then `dotnet restore --force`. On x86 or ARM64 you need the matching run
 **First utterance is slow, later ones are fast.** The model loaded lazily. Set
 `SpeechToText.WarmUpOnStart: true`.
 
+**The first utterance after switching On is slow, every time.** Expected:
+`SpeechToText.UnloadOnInactive` is `true` by default, so switching Off releases the model and
+switching On reloads it (about a second warm). Set it to `false` to keep the model resident
+and make toggling instant, at the cost of ~270 MB while idle — see
+[configuration.md](configuration.md#memory-while-idle). The tray menu's *Model:* line tells
+you whether it is currently loaded.
+
 **Every utterance is slow.** Check RTF in the log. If it's above ~1.0, the model is too big
 for the machine — see [models.md](models.md). If RTF is high specifically on *short* clips,
 you're on a Whisper model paying its 30-second window; switch to Moonshine.

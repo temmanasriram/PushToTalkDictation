@@ -82,7 +82,35 @@ one real rejection before guessing.
 |---|---|---|
 | `Engine` | `"SherpaOnnx"` | `SherpaOnnx` \| `WhisperNet` \| `Http` |
 | `WarmUpOnStart` | `true` | Load the model at launch instead of on first use. Removes a 1–3 s stall on the first utterance. |
+| `UnloadOnInactive` | `true` | Release the model from memory while dictation is switched off. |
 | `ModelRoot` | `null` | Root that the relative model paths below resolve against. `null` = probe the standard locations. |
+
+### Memory while idle
+
+The model is the app's entire memory footprint. Measured with Moonshine Base:
+
+| State | Working set | Private bytes |
+|---|---|---|
+| Model loaded | ~313 MB | ~272 MB |
+| Model released | ~75 MB | ~33 MB |
+| Never loaded (fresh process) | ~48 MB | ~11 MB |
+
+With `UnloadOnInactive: true` (the default), switching **Off** in the tray releases it and
+switching **On** loads it again — about a second once the files are in the OS cache, measured
+across repeated toggles. The tray menu shows which state it's in. Three details worth knowing:
+
+- The unload waits for the clip queue to drain, so anything you already said still gets typed.
+- A clip that arrives while the model is gone reloads it transparently; you never lose an
+  utterance to the model being unloaded.
+- Starting with `StartActive: false` doesn't load the model at all, rather than loading it
+  and immediately releasing it.
+
+Roughly 20 MB of the released state is one-time ONNX Runtime initialisation that doesn't come
+back — the native library stays loaded once used. Repeated toggling is stable, not leaky.
+
+Set `UnloadOnInactive: false` to keep the model resident so toggling on is instant. That is
+the right choice if you toggle frequently, or if you have RAM to spare and care only about
+latency.
 
 ### Where models are looked up
 

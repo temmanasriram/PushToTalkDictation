@@ -18,8 +18,8 @@ public sealed class WhisperNetSpeechToTextEngine : SpeechToTextEngineBase
     private readonly WhisperNetSettings _settings;
     private readonly string? _modelRoot;
     private readonly ILogger<WhisperNetSpeechToTextEngine> _logger;
-    private readonly SemaphoreSlim _decodeGate = new(1, 1);
 
+    // No decode gate here: SpeechToTextEngineBase serialises load, decode and unload.
     private WhisperFactory? _factory;
     private WhisperProcessor? _processor;
 
@@ -37,6 +37,11 @@ public sealed class WhisperNetSpeechToTextEngine : SpeechToTextEngineBase
         var path = ModelPathResolver.ResolveFile(_settings.ModelPath, _modelRoot);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        // LoadAsync runs again after an unload, so never leak a previous session.
+        _processor?.Dispose();
+        _factory?.Dispose();
+
         _factory = WhisperFactory.FromPath(path);
 
         var builder = _factory.CreateBuilder()
@@ -56,32 +61,27 @@ public sealed class WhisperNetSpeechToTextEngine : SpeechToTextEngineBase
     {
         var processor = _processor ?? throw new InvalidOperationException("Processor not initialised.");
 
-        await _decodeGate.WaitAsync(ct).ConfigureAwait(false);
-        try
-        {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            var builder = new System.Text.StringBuilder();
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var builder = new System.Text.StringBuilder();
 
-            await foreach (var segment in processor.ProcessAsync(clip.Samples, ct).ConfigureAwait(false))
-                builder.Append(segment.Text);
+        await foreach (var segment in processor.ProcessAsync(clip.Samples, ct).ConfigureAwait(false))
+            builder.Append(segment.Text);
 
-            _logger.LogDebug("Decoded {Audio:F2}s of audio in {Ms} ms.",
-                clip.Duration.TotalSeconds, sw.ElapsedMilliseconds);
+        _logger.LogDebug("Decoded {Audio:F2}s of audio in {Ms} ms.",
+            clip.Duration.TotalSeconds, sw.ElapsedMilliseconds);
 
-            return builder.ToString();
-        }
-        finally
-        {
-            _decodeGate.Release();
-        }
+        return builder.ToString();
     }
 
-    protected override async ValueTask DisposeCoreAsync()
+    protected override async ValueTask UnloadCoreAsync()
     {
+        if (_processor is null && _factory is null) return;
+
         if (_processor is not null) await _processor.DisposeAsync().ConfigureAwait(false);
         _factory?.Dispose();
         _processor = null;
         _factory = null;
-        _decodeGate.Dispose();
+
+        _logger.LogInformation("Released the GGML model.");
     }
 }

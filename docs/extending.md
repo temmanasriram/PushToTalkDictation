@@ -3,8 +3,9 @@
 ## Adding a speech-to-text engine
 
 The contract is one interface. `SpeechToTextEngineBase` gives you race-free lazy loading,
-lazy init on first use, and artefact stripping — derive from it rather than implementing
-`ISpeechToTextEngine` directly unless you need different lifecycle behaviour.
+lazy init on first use, serialised decoding, unload/reload, and artefact stripping — derive
+from it rather than implementing `ISpeechToTextEngine` directly unless you need different
+lifecycle behaviour.
 
 ```csharp
 using PushToTalkDictation.Audio;
@@ -19,7 +20,8 @@ public sealed class MyEngine : SpeechToTextEngineBase
 
     public MyEngine(AppSettings settings, ILogger<MyEngine> logger) => _logger = logger;
 
-    // Called at most once, guarded by a semaphore. Throw to surface a balloon tip.
+    // Called under the session gate, and again after an unload, so make it repeatable.
+    // Throw to surface a balloon tip.
     protected override Task LoadAsync(CancellationToken ct) => Task.Run(() =>
     {
         _session = MyNativeSession.Load(/* path from settings */);
@@ -29,9 +31,13 @@ public sealed class MyEngine : SpeechToTextEngineBase
     protected override Task<string> RecognizeAsync(AudioClip clip, CancellationToken ct)
         => Task.Run(() => _session!.Transcribe(clip.Samples, clip.SampleRate), ct);
 
-    protected override ValueTask DisposeCoreAsync()
+    // Free the model but stay reusable: called when dictation is switched off, and
+    // LoadAsync may follow later. Anything the engine needs for its whole lifetime
+    // (config, loggers, a HttpClient) must survive this.
+    protected override ValueTask UnloadCoreAsync()
     {
         _session?.Dispose();
+        _session = null;
         return ValueTask.CompletedTask;
     }
 }
@@ -72,8 +78,14 @@ Whatever shape your engine wants:
   the tray state. Wrap native blocking calls in `Task.Run`.
 - **Return `string.Empty`, don't throw, for "nothing recognised."** Throwing surfaces an error
   balloon to the user, which is right for a missing model file and wrong for a quiet clip.
-- **Serialise if the native session isn't re-entrant.** Both shipped native engines hold a
-  `SemaphoreSlim(1,1)` around the decode call for this reason.
+- **No locking needed for a non-re-entrant native session.** `SpeechToTextEngineBase` holds a
+  single gate across load, decode *and* unload, so `RecognizeAsync` is never called
+  concurrently and the model can never be freed mid-decode. Don't add your own decode
+  semaphore; it would only be redundant.
+- **`LoadAsync` must be repeatable.** With `SpeechToText.UnloadOnInactive` set (the default),
+  the model is released when dictation is switched off and loaded again on the next
+  activation, so `LoadAsync` runs more than once over a process lifetime. Dispose any
+  previous session at the top of it rather than assuming a clean slate.
 
 ### Two concrete cases from the original brief
 
@@ -81,8 +93,9 @@ Whatever shape your engine wants:
 using Whisper.net, `LoadAsync` calls `whisper_init_from_file_with_params`, `RecognizeAsync`
 calls `whisper_full` over `clip.Samples` (whisper.cpp wants exactly mono f32 16 kHz — which
 is what `AudioClip` already is, no conversion needed) and concatenates `whisper_full_get_segment_text`.
-Keep the context pointer in a field and free it in `DisposeCoreAsync`. Copy the
-`SemaphoreSlim` pattern; a `whisper_context` is not re-entrant.
+Keep the context pointer in a field and free it in `UnloadCoreAsync`. You need no lock of
+your own — the base class already serialises decodes against each other and against unload,
+which is what a non-re-entrant `whisper_context` requires.
 
 **A local faster-whisper Python endpoint.** Already shipped as `HttpSpeechToTextEngine` —
 point `SpeechToText.Http.Endpoint` at it. If your server isn't OpenAI-compatible, the only

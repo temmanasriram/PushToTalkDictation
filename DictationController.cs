@@ -56,6 +56,9 @@ public sealed class DictationController : IAsyncDisposable
 
     public string EngineName => _engine.Name;
 
+    /// <summary>Whether the model currently occupies memory.</summary>
+    public bool IsModelLoaded => _engine.IsReady;
+
     public HotkeyCombo Combo => _hotkeys.Combo;
 
     public DictationState State
@@ -104,6 +107,12 @@ public sealed class DictationController : IAsyncDisposable
             _hook.Install();
             _hotkeys.Enable();
             State = DictationState.Idle;
+
+            // Reloads the model if switching off released it; a no-op when it is still
+            // loaded, and skipped entirely when WarmUpOnStart is false - in which case
+            // the first utterance pays the load instead.
+            _ = WarmUpAsync();
+
             _logger.LogInformation("Dictation active. Hold {Combo} to talk.", _hotkeys.Combo);
         }
         else
@@ -113,6 +122,37 @@ public sealed class DictationController : IAsyncDisposable
             State = DictationState.Inactive;
             _ = Task.Run(() => _recorder.CancelAsync());
             _logger.LogInformation("Dictation inactive. Keyboard hooks removed.");
+
+            if (_settings.SpeechToText.UnloadOnInactive)
+                _ = UnloadWhenDrainedAsync();
+        }
+    }
+
+    /// <summary>
+    /// Releases the model once the queue is empty. Clips already spoken are still
+    /// transcribed and typed first - switching off means "stop listening", not "discard
+    /// what I just said" - so this waits for them rather than cancelling them.
+    /// </summary>
+    private async Task UnloadWhenDrainedAsync()
+    {
+        try
+        {
+            while (Volatile.Read(ref _pendingClips) > 0)
+                await Task.Delay(100, _shutdown.Token).ConfigureAwait(false);
+
+            // Switched back on while the queue drained - leave the model where it is.
+            if (IsActive) return;
+
+            await _engine.UnloadAsync().ConfigureAwait(false);
+            _logger.LogInformation("Model released while inactive; it reloads on the next activation.");
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutting down. DisposeAsync frees the engine anyway.
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to release the model.");
         }
     }
 
@@ -120,6 +160,10 @@ public sealed class DictationController : IAsyncDisposable
     public Task WarmUpAsync() => Task.Run(async () =>
     {
         if (!_settings.SpeechToText.WarmUpOnStart) return;
+
+        // Nothing to warm up for while switched off, if being switched off is what
+        // releases the model - otherwise starting inactive would still hold it resident.
+        if (!IsActive && _settings.SpeechToText.UnloadOnInactive) return;
 
         try
         {

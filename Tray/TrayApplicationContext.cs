@@ -21,6 +21,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _toggleItem;
     private readonly ToolStripMenuItem _statusItem;
+    private readonly ToolStripMenuItem _modelItem;
 
     // Owns the thread affinity for UI updates coming off the pipeline.
     private readonly SynchronizationContext _uiContext;
@@ -45,6 +46,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _statusItem = new ToolStripMenuItem("Idle") { Enabled = false };
 
         var engineItem = new ToolStripMenuItem($"Engine: {_controller.EngineName}") { Enabled = false };
+        _modelItem = new ToolStripMenuItem("Model: -") { Enabled = false };
         var hotkeyItem = new ToolStripMenuItem($"Hold: {_controller.Combo}") { Enabled = false };
 
         var settingsItem = new ToolStripMenuItem("Open settings file...");
@@ -63,6 +65,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             new ToolStripSeparator(),
             _statusItem,
             engineItem,
+            _modelItem,
             hotkeyItem,
             new ToolStripSeparator(),
             settingsItem,
@@ -70,6 +73,10 @@ public sealed class TrayApplicationContext : ApplicationContext
             new ToolStripSeparator(),
             exitItem
         ]);
+
+        // The model is released asynchronously after switching off, so this line is
+        // refreshed when the menu opens rather than only on a state change.
+        _menu.Opening += (_, _) => RefreshModelItem();
 
         _notifyIcon = new NotifyIcon
         {
@@ -105,6 +112,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         _notifyIcon.ShowBalloonTip(4000, "Push-to-Talk Dictation", ex.Message, ToolTipIcon.Error);
     }, null);
 
+    private void RefreshModelItem() =>
+        _modelItem.Text = _controller.IsModelLoaded
+            ? "Model: loaded in memory"
+            : "Model: released (loads on demand)";
+
     private void RefreshUi(DictationState state)
     {
         _notifyIcon.Icon = _icons.For(state);
@@ -118,6 +130,8 @@ public sealed class TrayApplicationContext : ApplicationContext
             DictationState.Idle => $"Ready - hold {_controller.Combo}",
             _ => "Inactive"
         };
+
+        RefreshModelItem();
 
         // NotifyIcon.Text is capped at 63 characters.
         var tip = $"Push-to-Talk Dictation - {_statusItem.Text}";

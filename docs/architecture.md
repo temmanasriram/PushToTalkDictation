@@ -77,6 +77,11 @@ milliseconds) never stalls the user's keyboard.
 deliver `HoldEnded` while `StartAsync` is still opening the device; the gate makes stop wait
 for start rather than racing it.
 
+**The engine session gate.** `SpeechToTextEngineBase` serialises load, decode and unload
+behind one `SemaphoreSlim(1,1)`. That is what makes releasing the model safe — an unload
+cannot free the native session while inference is running, and a decode cannot start against
+a session being freed — and it means engines need no decode lock of their own.
+
 **One consumer.** Clips go into an unbounded `Channel<AudioClip>` with `SingleReader = true`.
 `ConsumeAsync` is the only thing that calls the engine and the injector. Two consequences
 that matter: transcription is serialised (so a single native model session is never re-entered),
@@ -167,6 +172,13 @@ Inactive ──SetActive(true)──▶ Idle ──hold──▶ Recording ─�
 `DictationState` drives only the tray icon and tooltip. `Inactive` means hooks are uninstalled
 — genuinely uninstalled, not just ignored, which is what "Off" in the menu promises.
 
+`Inactive` also releases the model by default (`SpeechToText.UnloadOnInactive`), which takes
+the process from roughly 310 MB to 75 MB. The unload waits for the clip queue to drain first:
+switching off means "stop listening", not "throw away what I just said". Switching back on
+reloads it in about a second once the files are in the OS cache, and a clip that arrives while
+the model is gone reloads it transparently. Set `UnloadOnInactive: false` to keep it resident
+so toggling on is instant. The tray menu shows which state the model is in.
+
 ## Why these choices
 
 | Decision | Reason |
@@ -176,5 +188,6 @@ Inactive ──SetActive(true)──▶ Idle ──hold──▶ Recording ─�
 | Unbounded channel rather than "drop if busy" | Speaking a second sentence while the first decodes is normal use, not an error. |
 | Icons drawn at runtime | No binary assets in the repo. Swap `TrayIcons.Build` for `new Icon("app.ico")` when you have artwork. |
 | Own file logger instead of Serilog/NLog | One dependency-free file, and full control over the non-blocking write path the hook callback depends on. |
+| Model released when switched off, not on a timer | "Off" is an explicit statement that the user is done for now, so it is the one moment a 260 MB release is unambiguously wanted. Idle timers guess, and guess wrong mid-conversation. |
 | Settings bound once at startup, no hot reload | A config change mid-utterance has no safe meaning. Restart is honest. |
 | Models probed at runtime, copied only on `publish` | A 200 MB copy on every incremental build is a tax paid hundreds of times to help once. Probing lets one `appsettings.json` serve the dev, published and installed layouts unchanged. |

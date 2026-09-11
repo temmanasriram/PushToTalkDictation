@@ -24,10 +24,9 @@ public sealed class SherpaOnnxSpeechToTextEngine : SpeechToTextEngineBase
     private readonly string? _modelRoot;
     private readonly ILogger<SherpaOnnxSpeechToTextEngine> _logger;
 
-    // OfflineRecognizer is reusable but a single native session should not be driven
-    // by two decodes at once; the pipeline is serial anyway, this makes it explicit.
-    private readonly SemaphoreSlim _decodeGate = new(1, 1);
-
+    // No decode gate here: SpeechToTextEngineBase serialises load, decode and unload
+    // against one another, so the native session is never driven by two decodes at once
+    // and can never be freed mid-decode.
     private OfflineRecognizer? _recognizer;
 
     public override string Name => $"sherpa-onnx ({_settings.ModelKind})";
@@ -85,7 +84,11 @@ public sealed class SherpaOnnxSpeechToTextEngine : SpeechToTextEngineBase
         }
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        // LoadAsync runs again after an unload, so never leak a previous session.
+        _recognizer?.Dispose();
         _recognizer = new OfflineRecognizer(config);
+
         _logger.LogInformation("Loaded {Kind} model from '{Dir}' in {Ms} ms.",
             _settings.ModelKind, dir, sw.ElapsedMilliseconds);
     }, ct);
@@ -94,29 +97,21 @@ public sealed class SherpaOnnxSpeechToTextEngine : SpeechToTextEngineBase
     {
         var recognizer = _recognizer ?? throw new InvalidOperationException("Recognizer not initialised.");
 
-        await _decodeGate.WaitAsync(ct).ConfigureAwait(false);
-        try
+        return await Task.Run(() =>
         {
-            return await Task.Run(() =>
-            {
-                var sw = System.Diagnostics.Stopwatch.StartNew();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
 
-                using var stream = recognizer.CreateStream();
-                stream.AcceptWaveform(clip.SampleRate, clip.Samples);
-                recognizer.Decode(stream);
-                var text = stream.Result.Text;
+            using var stream = recognizer.CreateStream();
+            stream.AcceptWaveform(clip.SampleRate, clip.Samples);
+            recognizer.Decode(stream);
+            var text = stream.Result.Text;
 
-                _logger.LogDebug("Decoded {Audio:F2}s of audio in {Ms} ms (RTF {Rtf:F2}).",
-                    clip.Duration.TotalSeconds, sw.ElapsedMilliseconds,
-                    sw.Elapsed.TotalSeconds / Math.Max(0.001, clip.Duration.TotalSeconds));
+            _logger.LogDebug("Decoded {Audio:F2}s of audio in {Ms} ms (RTF {Rtf:F2}).",
+                clip.Duration.TotalSeconds, sw.ElapsedMilliseconds,
+                sw.Elapsed.TotalSeconds / Math.Max(0.001, clip.Duration.TotalSeconds));
 
-                return text;
-            }, ct).ConfigureAwait(false);
-        }
-        finally
-        {
-            _decodeGate.Release();
-        }
+            return text;
+        }, ct).ConfigureAwait(false);
     }
 
     private static string Require(string dir, string fileName)
@@ -127,11 +122,14 @@ public sealed class SherpaOnnxSpeechToTextEngine : SpeechToTextEngineBase
         return path;
     }
 
-    protected override ValueTask DisposeCoreAsync()
+    protected override ValueTask UnloadCoreAsync()
     {
-        _recognizer?.Dispose();
+        if (_recognizer is null) return ValueTask.CompletedTask;
+
+        _recognizer.Dispose();
         _recognizer = null;
-        _decodeGate.Dispose();
+        _logger.LogInformation("Released the {Kind} model.", _settings.ModelKind);
+
         return ValueTask.CompletedTask;
     }
 }

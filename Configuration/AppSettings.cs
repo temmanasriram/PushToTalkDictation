@@ -44,6 +44,13 @@ public sealed class SpeechToTextSettings
     public bool WarmUpOnStart { get; set; } = true;
 
     /// <summary>
+    /// Release the model from memory when dictation is switched off, reloading it on the
+    /// next activation. Trades a reload — around a second once the files are in the OS
+    /// cache — for the few hundred MB the model holds while idle.
+    /// </summary>
+    public bool UnloadOnInactive { get; set; } = true;
+
+    /// <summary>
     /// Optional root for the relative model paths below. Null means "probe the standard
     /// locations" — see <see cref="Stt.ModelPathResolver"/> for the order.
     /// </summary>

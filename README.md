@@ -21,6 +21,10 @@ dotnet build -c Release
 A microphone icon appears in the tray. Hold **Ctrl+Shift+Space**, speak, release.
 Grey = off, blue = ready, red = recording, amber = transcribing.
 
+Switching **Off** in the tray menu uninstalls the keyboard hook and releases the model,
+taking the process from ~310 MB to ~75 MB; switching **On** reloads it in about a second.
+Set `SpeechToText.UnloadOnInactive: false` to keep it resident instead.
+
 The model stays in `.\models` and is found from there — it is not copied into `bin\` on every
 build. To ship, `dotnet publish -c Release` produces a folder with the model beside the
 executable that can be zipped and moved to another machine as a unit. Details in
