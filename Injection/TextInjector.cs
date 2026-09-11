@@ -8,7 +8,13 @@ namespace PushToTalkDictation.Injection;
 
 public interface ITextInjector
 {
-    Task InjectAsync(string text, CancellationToken ct = default);
+    /// <summary>
+    /// Types text into the focused window. <paramref name="targetWindow"/> is the window
+    /// that had focus when the user started speaking; the injector returns focus to it
+    /// first if focus has since moved. Pass <see cref="IntPtr.Zero"/> to type wherever
+    /// focus currently is.
+    /// </summary>
+    Task InjectAsync(string text, IntPtr targetWindow = default, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -40,12 +46,14 @@ public sealed class TextInjector : ITextInjector
         _logger = logger;
     }
 
-    public async Task InjectAsync(string text, CancellationToken ct = default)
+    public async Task InjectAsync(string text, IntPtr targetWindow = default,
+        CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(text)) return;
 
         await WaitForModifierReleaseAsync(ct).ConfigureAwait(false);
         ClearStuckModifiers();
+        RestoreTargetWindow(targetWindow);
 
         if (_settings.ClipboardThreshold > 0 && text.Length >= _settings.ClipboardThreshold)
         {
@@ -190,6 +198,54 @@ public sealed class TextInjector : ITextInjector
         return tcs.Task;
     }
 
+    // ------------------------------------------------------------ target window
+
+    /// <summary>
+    /// Returns focus to the window the user was dictating into, if something else took it
+    /// while we were transcribing - opening the tray menu to watch the status is enough to
+    /// do that, and then the text would land there instead of in the document.
+    ///
+    /// Best effort by nature: UIPI blocks reaching a higher-integrity window, and the
+    /// window may have closed. Failing here just means typing wherever focus already is,
+    /// which is what the app did before.
+    /// </summary>
+    private void RestoreTargetWindow(IntPtr targetWindow)
+    {
+        if (!_settings.RestoreTargetWindow) return;
+        if (targetWindow == IntPtr.Zero) return;
+
+        var foreground = Win32.GetForegroundWindow();
+        if (foreground == targetWindow) return;
+
+        if (!Win32.IsWindow(targetWindow))
+        {
+            _logger.LogDebug("The window dictation started in has closed; typing into the foreground.");
+            return;
+        }
+
+        var foregroundThread = foreground == IntPtr.Zero
+            ? 0
+            : Win32.GetWindowThreadProcessId(foreground, out _);
+        var thisThread = Win32.GetCurrentThreadId();
+
+        var attached = foregroundThread != 0
+                       && foregroundThread != thisThread
+                       && Win32.AttachThreadInput(thisThread, foregroundThread, true);
+        try
+        {
+            Win32.SetForegroundWindow(targetWindow);
+        }
+        finally
+        {
+            if (attached) Win32.AttachThreadInput(thisThread, foregroundThread, false);
+        }
+
+        if (Win32.GetForegroundWindow() == targetWindow)
+            _logger.LogDebug("Focus had moved; restored the window dictation started in.");
+        else
+            _logger.LogDebug("Could not restore focus to the window dictation started in.");
+    }
+
     // --------------------------------------------------------------- modifiers
 
     private async Task WaitForModifierReleaseAsync(CancellationToken ct)
@@ -213,24 +269,38 @@ public sealed class TextInjector : ITextInjector
         Win32.IsKeyDown(Win32.VK_RWIN);
 
     /// <summary>
-    /// Sends key-up for every modifier. Harmless when they are already up, and it
-    /// clears the "stuck Ctrl" state that a suppressed key-up can otherwise leave in
-    /// the target window's view of the keyboard.
+    /// Releases modifiers the user is still holding, so dictated text is inserted rather
+    /// than interpreted as shortcuts.
+    ///
+    /// Only keys actually reported down are released. The previous version fired key-ups
+    /// for all six of Ctrl/Shift/Alt unconditionally, which meant synthesising an Alt
+    /// release during every dictation that ended with a modifier held - a stray Alt-up is
+    /// how you activate a window's menu bar, and it told the OS about key movement that
+    /// never happened for keys that were not even involved.
+    ///
+    /// Note this still desynchronises the OS from the user's fingers for the keys it does
+    /// release: the key is physically down and there will be no second key-down to undo
+    /// this. <see cref="Input.HotkeyWatcher"/> tracks physical state from hook events for
+    /// exactly that reason, so the hotkey keeps working afterwards.
     /// </summary>
-    private static void ClearStuckModifiers()
+    private void ClearStuckModifiers()
     {
-        if (!AnyModifierDown()) return;
+        var held = new List<Win32.INPUT>(6);
 
-        var inputs = new[]
+        foreach (var vk in (int[])[
+                     Win32.VK_LCONTROL, Win32.VK_RCONTROL,
+                     Win32.VK_LSHIFT, Win32.VK_RSHIFT,
+                     Win32.VK_LMENU, Win32.VK_RMENU])
         {
-            Win32.VirtualKey((ushort)Win32.VK_LCONTROL, keyUp: true),
-            Win32.VirtualKey((ushort)Win32.VK_RCONTROL, keyUp: true),
-            Win32.VirtualKey((ushort)Win32.VK_LSHIFT, keyUp: true),
-            Win32.VirtualKey((ushort)Win32.VK_RSHIFT, keyUp: true),
-            Win32.VirtualKey((ushort)Win32.VK_LMENU, keyUp: true),
-            Win32.VirtualKey((ushort)Win32.VK_RMENU, keyUp: true)
-        };
+            if (Win32.IsKeyDown(vk))
+                held.Add(Win32.VirtualKey((ushort)vk, keyUp: true));
+        }
 
+        if (held.Count == 0) return;
+
+        _logger.LogDebug("Releasing {Count} modifier key(s) still held at injection time.", held.Count);
+
+        var inputs = held.ToArray();
         Win32.SendInput((uint)inputs.Length, inputs, Win32.InputSize);
     }
 }

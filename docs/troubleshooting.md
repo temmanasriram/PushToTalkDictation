@@ -34,6 +34,9 @@ starts grey every time, set `"StartActive": true`.
 **Icon is blue, but holding the hotkey does nothing.** In order of likelihood:
 
 1. *Another app owns the combo.* Try a different `Hotkey.Combo` — `Ctrl+Alt+D` is usually free.
+   (A hotkey that went dead specifically after a dictation, until you released and re-pressed
+   the modifiers, was a bug in versions before 1.0.1 — see the `GetAsyncKeyState` note in
+   [win32-notes.md](win32-notes.md#wh_keyboard_ll).)
 2. *The foreground window is elevated.* A non-elevated process cannot hook keys inside a
    higher-integrity window. Test in Notepad first; if it works there, this is your answer —
    see [win32-notes.md](win32-notes.md#uipi-and-integrity-levels).
@@ -130,8 +133,11 @@ one.
    [win32-notes.md](win32-notes.md#uipi-and-integrity-levels).
 2. *`SendInput delivered 0/N events` in the log.* Same thing, now confirmed — the OS refused
    the injection.
-3. *Focus moved.* Text goes wherever focus is *when injection runs*, not when you started
-   speaking. Clicking elsewhere while transcribing sends it there.
+3. *Focus moved.* By default the app restores the window you started speaking in
+   (`Injection.RestoreTargetWindow`), and logs `restored the window dictation started in` at
+   `Debug` when it does. If it logs `Could not restore focus` the target is unreachable —
+   usually a higher-integrity window. With the setting off, text goes wherever focus happens
+   to be when injection runs.
 4. *The clipboard path failed silently in an app that ignores `Ctrl+V`* — some terminals use
    `Ctrl+Shift+V`. Set `Injection.ClipboardThreshold: 0` to always type instead.
 

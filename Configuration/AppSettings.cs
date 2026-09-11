@@ -118,6 +118,13 @@ public sealed class InjectionSettings
     public int ClipboardThreshold { get; set; } = 240;
     public int WaitForModifierReleaseMs { get; set; } = 400;
     public bool AppendTrailingSpace { get; set; } = true;
+
+    /// <summary>
+    /// Type into the window that was focused when the hold started, restoring it first if
+    /// focus moved in the meantime (opening the tray menu is enough to move it). Without
+    /// this, text lands wherever focus happens to be when transcription finishes.
+    /// </summary>
+    public bool RestoreTargetWindow { get; set; } = true;
 }
 
 public sealed class LoggingSettings

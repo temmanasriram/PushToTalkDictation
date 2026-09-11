@@ -191,6 +191,14 @@ and anything else returning `{"text": "..."}`.
 | `ClipboardThreshold` | `240` | Paste via clipboard above this length. `0` = always type. |
 | `WaitForModifierReleaseMs` | `400` | Wait for physical Ctrl/Shift/Alt/Win to come up before typing. |
 | `AppendTrailingSpace` | `true` | Append one space so consecutive dictations don't run together. |
+| `RestoreTargetWindow` | `true` | Type into the window that was focused when you started speaking, restoring focus to it first if it moved. |
+
+**Why `RestoreTargetWindow` exists:** text is typed a second or more after you stop speaking,
+and `SendInput` goes wherever focus is at that moment — so anything that takes focus in the
+meantime receives your transcript instead. Opening the tray menu to watch the status does
+exactly that. With this on, the app remembers the window you were speaking into and restores it
+first. It is best-effort: it cannot reach a higher-integrity window, and it does nothing if the
+window has closed. Set it to `false` for the old always-type-into-the-foreground behaviour.
 
 **Why the modifier wait matters:** if injection starts while you're still holding Ctrl, the
 target app sees `Ctrl+<char>` and runs shortcuts instead of inserting text. The injector waits,

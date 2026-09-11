@@ -42,10 +42,22 @@ so no other hook and no application sees it. The app swallows only the trigger k
 while the combo is active, and only when `SuppressTriggerKey` is set. Swallowing modifiers
 would break every other shortcut on the system.
 
-**`GetAsyncKeyState` lags its own event.** While the callback for a key-*up* is executing, that
-key still reads as down. `HotkeyWatcher.CurrentModifiers` takes the event being processed and
-clears the corresponding bit explicitly. Without that correction, releasing Ctrl never appears
-to end the hold.
+**`GetAsyncKeyState` cannot be the only source of modifier state.** Two distinct problems:
+
+1. While the callback for a key-*up* is executing, that key still reads as down.
+2. Worse, and the cause of a real bug: `SendInput` changes what `GetAsyncKeyState` reports.
+   `TextInjector` releases modifiers the user is still holding before it types, so afterwards
+   Ctrl reads as *up* while the user's finger is still on the key. Nothing resyncs it - the
+   key never physically moves again, so there is no second key-down. The hotkey then stopped
+   matching, silently, until the user let go of the modifiers and pressed them again: hold
+   Ctrl+Shift, dictate, keep holding, press Space again, and nothing happened at all.
+
+`HotkeyWatcher` therefore tracks physical modifier state from the hook's own events, which
+describe only real key movement because injected input is filtered out by signature before the
+watcher sees it. The effective state is the union of that and `GetAsyncKeyState`: tracked-only
+covers the injector's synthetic key-ups, OS-only covers a key-down that happened while the hook
+was not installed. Updating the tracked state from the event *before* evaluating it also makes
+problem 1 disappear, so no explicit correction is needed any more.
 
 **L/R variants.** The hook reports `VK_LCONTROL`/`VK_RCONTROL`, not `VK_CONTROL`.
 `HotkeyWatcher.Normalize` collapses them so the two Ctrl keys behave identically.
@@ -86,8 +98,23 @@ feedback loop. Windows also sets `LLKHF_INJECTED` on synthetic input, but that f
 target app can still call `GetKeyState(VK_CONTROL)` and decide it's looking at a shortcut. If
 the user is still holding Ctrl when injection begins, dictated text turns into a burst of
 keyboard shortcuts — a genuinely destructive failure in an editor. The injector waits up to
-`WaitForModifierReleaseMs` for physical release, then sends key-ups for both Ctrl, both Shift
-and both Alt regardless.
+`WaitForModifierReleaseMs` for physical release, then releases whatever is still down.
+
+**Release only the keys actually down.** The first version fired key-ups for both Ctrl, both
+Shift *and* both Alt unconditionally. That synthesised an Alt release on every dictation that
+ended with a modifier held, for a key that was never involved — and a stray Alt-up is how you
+activate a window's menu bar. Read each key with `GetAsyncKeyState` and release only that set.
+Note this still desynchronises the OS from the user's fingers for the keys it does release; see
+the `GetAsyncKeyState` note above for why the hotkey survives that.
+
+**Text follows focus, so capture the target window up front.** `SendInput` goes to whatever has
+focus *when it runs*, which for dictation is a second or more after the user stopped speaking.
+Opening the tray menu to check the status is enough to move focus, and then the transcript is
+typed into the menu instead of the document. `DictationController` reads
+`GetForegroundWindow()` at `HoldStarted` and passes it down with the clip; `TextInjector`
+restores it with the `AttachThreadInput` + `SetForegroundWindow` dance if focus has moved.
+Windows refuses `SetForegroundWindow` from a process that doesn't already own the foreground,
+which is what the attach works around.
 
 ## UIPI and integrity levels
 

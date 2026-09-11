@@ -173,4 +173,24 @@ internal static partial class Win32
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    /// <summary>
+    /// Windows refuses SetForegroundWindow from a process that does not already own the
+    /// foreground. Briefly joining the foreground thread's input queue lifts that, which is
+    /// how the injector returns focus to the window the user was dictating into.
+    /// </summary>
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
 }

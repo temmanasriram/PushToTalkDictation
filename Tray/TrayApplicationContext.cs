@@ -105,7 +105,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         _controller.Failed += OnFailed;
 
         _controller.SetActive(_settings.StartActive);
-        _ = _controller.WarmUpAsync();
+
+        // Activating already warms the model up, so only warm up here when we did not -
+        // otherwise both paths run and the log reports the engine ready twice.
+        if (!_controller.IsActive)
+            _ = _controller.WarmUpAsync();
 
         RefreshUi(_controller.State);
     }

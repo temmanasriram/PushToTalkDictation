@@ -26,6 +26,21 @@ public sealed class HotkeyWatcher : IDisposable
     private bool _triggerDown;    // trigger key physically down (filters auto-repeat)
     private bool _arming;         // modifiers-only: waiting out the hold threshold
 
+    /// <summary>
+    /// Physical modifier state, tracked from the hook's own events.
+    ///
+    /// This exists because GetAsyncKeyState alone is not trustworthy here.
+    /// TextInjector releases held modifiers before typing, and those synthetic key-ups
+    /// make GetAsyncKeyState report a modifier as up while the user is still holding the
+    /// key down - there is no second key-down to resync it, because the key never
+    /// physically moved. The hotkey then silently stopped matching until the user let go
+    /// of the modifiers and pressed them again.
+    ///
+    /// The hook filters out this app's own injected input by signature before we see it,
+    /// so these events describe only real key movement.
+    /// </summary>
+    private HotModifiers _physicalModifiers;
+
     /// <summary>Raised when the user starts holding the combo.</summary>
     public event EventHandler? HoldStarted;
 
@@ -59,6 +74,10 @@ public sealed class HotkeyWatcher : IDisposable
 
     public void Enable()
     {
+        // Seed from the OS: the hook was not installed until now, so any modifier already
+        // held has no tracked key-down. Injected key-ups cannot make this a false positive,
+        // since this app only ever synthesises modifier key-*ups*.
+        _physicalModifiers = QueryModifiers();
         _enabled = true;
         _logger.LogInformation("Hotkey watcher enabled for {Combo}.", _combo);
     }
@@ -78,7 +97,11 @@ public sealed class HotkeyWatcher : IDisposable
         if (!_enabled) return;
 
         var key = Normalize(e.Key);
-        var modifiers = CurrentModifiers(key, e.IsKeyDown);
+
+        // Record the key movement before deciding anything, so the state already reflects
+        // the event being handled - including a modifier's own key-up.
+        TrackModifier(key, e.IsKeyDown);
+        var modifiers = CurrentModifiers();
 
         if (_combo.IsModifiersOnly)
             HandleModifiersOnly(key, e, modifiers);
@@ -176,7 +199,7 @@ public sealed class HotkeyWatcher : IDisposable
         if (!_arming) return;
         _arming = false;
 
-        if (_combo.ModifiersSatisfied(CurrentModifiers(Keys.None, false)))
+        if (_combo.ModifiersSatisfied(CurrentModifiers()))
             BeginHold();
     }
 
@@ -212,31 +235,43 @@ public sealed class HotkeyWatcher : IDisposable
     private static bool IsModifierKey(Keys key) =>
         key is Keys.ControlKey or Keys.ShiftKey or Keys.Menu or Keys.LWin or Keys.RWin;
 
+    /// <summary>Maps a normalised modifier key to its flag; None for anything else.</summary>
+    private static HotModifiers FlagFor(Keys key) => key switch
+    {
+        Keys.ControlKey => HotModifiers.Control,
+        Keys.ShiftKey => HotModifiers.Shift,
+        Keys.Menu => HotModifiers.Alt,
+        Keys.LWin or Keys.RWin => HotModifiers.Win,
+        _ => HotModifiers.None
+    };
+
+    private void TrackModifier(Keys key, bool isDown)
+    {
+        var flag = FlagFor(key);
+        if (flag == HotModifiers.None) return;
+
+        if (isDown) _physicalModifiers |= flag;
+        else _physicalModifiers &= ~flag;
+    }
+
     /// <summary>
-    /// Physical modifier state. GetAsyncKeyState still reports a modifier as down while
-    /// we are inside the hook callback for its own key-up, so that one case is corrected
-    /// from the event itself.
+    /// What the user is physically holding: the union of our tracked state and the OS
+    /// state.
+    ///
+    /// Tracked-but-not-OS covers the injector's synthetic key-ups, where the key is still
+    /// held but the OS has been told otherwise. OS-but-not-tracked covers a key-down this
+    /// app never saw, because the hook was not installed at the time - so a bit that goes
+    /// stale corrects itself the next time that key is actually pressed.
     /// </summary>
-    private static HotModifiers CurrentModifiers(Keys eventKey, bool eventIsDown)
+    private HotModifiers CurrentModifiers() => _physicalModifiers | QueryModifiers();
+
+    private static HotModifiers QueryModifiers()
     {
         var m = HotModifiers.None;
         if (Win32.IsKeyDown(Win32.VK_CONTROL)) m |= HotModifiers.Control;
         if (Win32.IsKeyDown(Win32.VK_SHIFT)) m |= HotModifiers.Shift;
         if (Win32.IsKeyDown(Win32.VK_MENU)) m |= HotModifiers.Alt;
         if (Win32.IsKeyDown(Win32.VK_LWIN) || Win32.IsKeyDown(Win32.VK_RWIN)) m |= HotModifiers.Win;
-
-        if (!eventIsDown)
-        {
-            m &= eventKey switch
-            {
-                Keys.ControlKey => ~HotModifiers.Control,
-                Keys.ShiftKey => ~HotModifiers.Shift,
-                Keys.Menu => ~HotModifiers.Alt,
-                Keys.LWin or Keys.RWin => ~HotModifiers.Win,
-                _ => ~HotModifiers.None
-            };
-        }
-
         return m;
     }
 

@@ -121,9 +121,11 @@ For a short sentence the wait is a fraction of a second.
 
 ### Things worth knowing
 
-**The text goes where the cursor is when the text *arrives*, not when you started talking.**
-Click into another window while it is still transcribing and the text lands there instead.
-Stay put until it appears.
+**The text goes to the window you were speaking into.** Transcription finishes a moment after
+you let go, and if something takes focus in between — opening the tray menu to check the status
+is enough — the app puts focus back before typing. The one case it cannot fix is a window
+running as administrator, which Windows will not let it restore; there the text still follows
+focus. `Injection.RestoreTargetWindow` turns the behaviour off.
 
 **Speak immediately after pressing and the first word can be clipped** — but only on your
 very first dictation after launching. Opening the microphone takes about 0.7 s the first
@@ -148,13 +150,17 @@ your system keeps working.
 
 ### Punctuation
 
-**The default model does not punctuate.** Moonshine Base transcribes the words it hears and
-nothing else, so *"Hello comma this is a test period"* comes out as
-`Hello comma this is a test period` — the punctuation words are typed out literally, and no
-commas or full stops are added on their own either. You will be adding punctuation by hand.
+**Punctuation is unreliable with the default model.** Two separate things to know:
 
-If that matters more to you than speed, switch to a punctuating model — the Whisper-family
-engines and SenseVoice add punctuation and casing. See [models.md](models.md).
+- **Spoken punctuation is not obeyed.** Saying *"Hello comma this is a test period"* types
+  `Hello comma this is a test period` — the words themselves, not the marks.
+- **What punctuation you do get is inconsistent.** Moonshine Base adds full stops and capitals
+  on its own sometimes and not others. The identical recording, transcribed twice in testing,
+  gave `...the lazy dog push to talk...` once and `...the lazy dog. Push to talk...` the next
+  time. Expect to tidy punctuation by hand.
+
+If you need it to be dependable, switch to a punctuating model — the Whisper-family engines and
+SenseVoice are built to produce punctuation and casing. See [models.md](models.md).
 
 There are no spoken editing commands in any case (no "delete that", no "new paragraph"); the
 app types what was recognised and nothing else.
@@ -167,7 +173,7 @@ app types what was recognised and nothing else.
 
 | Item | What it does |
 |---|---|
-| *Push-to-Talk Dictation 1.0.0* | The version you are running — quote it if you report a problem |
+| *Push-to-Talk Dictation 1.0.1* | The version you are running — quote it if you report a problem |
 | **Toggle Active (On/Off)** | Turns dictation on or off — see below |
 | *Ready - hold Ctrl+Shift+Space* | Current status, the same information as the icon colour |
 | *Engine: …* | Which speech engine is in use |
@@ -229,6 +235,7 @@ will tell you.
 | `Hotkey.Combo` | `"Ctrl+Shift+Space"` | The default clashes with an app you use |
 | `SpeechToText.UnloadOnInactive` | `true` | You want instant on/off instead of the memory back |
 | `Injection.AppendTrailingSpace` | `true` | You do not want an automatic trailing space |
+| `Injection.RestoreTargetWindow` | `true` | You would rather the text always go to whatever has focus when it is ready |
 | `Injection.ClipboardThreshold` | `240` | Set `0` if you use a clipboard manager, or if a terminal ignores <kbd>Ctrl</kbd>+<kbd>V</kbd> |
 | `Audio.SilenceRmsThreshold` | `0.0025` | Raise to `0.005` if stray taps produce phantom text; lower to `0.001` if quiet speech is dropped |
 | `Audio.DeviceId` | `null` | You have several microphones and it picked the wrong one |
@@ -341,7 +348,7 @@ may need to add an exclusion. On a work machine, expect to involve whoever manag
 | No tray icon at all | It failed to start. Check the log, or run the `.exe` from PowerShell to see the error — usually a typo in `appsettings.json`. |
 | Icon is grey | Switched off. Click it → **Toggle Active**. Starts grey every time? Set `StartActive: true`. |
 | Icon is blue but the hotkey does nothing | Another app owns that key combination — try `"Ctrl+Alt+D"`. Or the window you are typing into is elevated (see above). |
-| Recording works, no text appears | The target window is elevated, or you clicked into a different window while it was transcribing. |
+| Recording works, no text appears | The target window is elevated — Windows blocks both the typing and the focus restore for an administrator window. |
 | Text appears but triggers menus and shortcuts | A modifier key was still held when typing began. Release the keys deliberately, or raise `Injection.WaitForModifierReleaseMs`. |
 | Phantom text from an accidental tap | Raise `Audio.SilenceRmsThreshold` to `0.005`. |
 | Quiet speech is ignored | Lower `Audio.SilenceRmsThreshold` to `0.001`. |

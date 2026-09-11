@@ -4,6 +4,7 @@ using PushToTalkDictation.Audio;
 using PushToTalkDictation.Configuration;
 using PushToTalkDictation.Injection;
 using PushToTalkDictation.Input;
+using PushToTalkDictation.Interop;
 using PushToTalkDictation.Stt;
 
 namespace PushToTalkDictation;
@@ -38,7 +39,10 @@ public sealed class DictationController : IAsyncDisposable
     private readonly AppSettings _settings;
     private readonly ILogger<DictationController> _logger;
 
-    private readonly Channel<AudioClip> _queue = Channel.CreateUnbounded<AudioClip>(
+    /// <summary>A finished clip plus the window that had focus when the user started speaking.</summary>
+    private readonly record struct PendingClip(AudioClip Clip, IntPtr TargetWindow);
+
+    private readonly Channel<PendingClip> _queue = Channel.CreateUnbounded<PendingClip>(
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
     private readonly CancellationTokenSource _shutdown = new();
@@ -47,6 +51,13 @@ public sealed class DictationController : IAsyncDisposable
 
     private DictationState _state = DictationState.Inactive;
     private int _pendingClips;
+
+    /// <summary>
+    /// The foreground window when the hold started. Captured so the transcript goes where
+    /// the user was speaking, even if focus moved while we were decoding. Only touched on
+    /// the hook/UI thread.
+    /// </summary>
+    private IntPtr _targetWindow;
 
     public event EventHandler<DictationState>? StateChanged;
     public event EventHandler<string>? TranscriptionProduced;
@@ -108,9 +119,9 @@ public sealed class DictationController : IAsyncDisposable
             _hotkeys.Enable();
             State = DictationState.Idle;
 
-            // Reloads the model if switching off released it; a no-op when it is still
-            // loaded, and skipped entirely when WarmUpOnStart is false - in which case
-            // the first utterance pays the load instead.
+            // Reloads the model if switching off released it. A no-op when it is already
+            // loaded, so the tray's own warm-up call at startup does not duplicate work -
+            // only the log line, which InitializeAsync short-circuits.
             _ = WarmUpAsync();
 
             _logger.LogInformation("Dictation active. Hold {Combo} to talk.", _hotkeys.Combo);
@@ -181,6 +192,10 @@ public sealed class DictationController : IAsyncDisposable
 
     private void OnHoldStarted(object? sender, EventArgs e)
     {
+        // Read synchronously, before anything is dispatched: this is the window the user
+        // is looking at as they begin to speak, and it is where the text belongs.
+        _targetWindow = Win32.GetForegroundWindow();
+
         // Returns immediately: the hook callback must not wait on audio device setup.
         _ = Task.Run(async () =>
         {
@@ -205,6 +220,8 @@ public sealed class DictationController : IAsyncDisposable
 
     private void OnHoldEnded(object? sender, bool cancelled)
     {
+        var targetWindow = _targetWindow;
+
         _ = Task.Run(async () =>
         {
             await _captureGate.WaitAsync(_shutdown.Token).ConfigureAwait(false);
@@ -226,7 +243,7 @@ public sealed class DictationController : IAsyncDisposable
                 }
 
                 Interlocked.Increment(ref _pendingClips);
-                _queue.Writer.TryWrite(clip);
+                _queue.Writer.TryWrite(new PendingClip(clip, targetWindow));
             }
             catch (Exception ex)
             {
@@ -255,7 +272,7 @@ public sealed class DictationController : IAsyncDisposable
     {
         try
         {
-            await foreach (var clip in _queue.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            await foreach (var (clip, targetWindow) in _queue.Reader.ReadAllAsync(ct).ConfigureAwait(false))
             {
                 try
                 {
@@ -278,7 +295,7 @@ public sealed class DictationController : IAsyncDisposable
 
                     TranscriptionProduced?.Invoke(this, text);
 
-                    await _injector.InjectAsync(text, ct).ConfigureAwait(false);
+                    await _injector.InjectAsync(text, targetWindow, ct).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {

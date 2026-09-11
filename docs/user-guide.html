@@ -285,9 +285,12 @@ dotnet publish -c Release</code></pre>
   <p>For a short sentence the wait is a fraction of a second.</p>
 
   <h3>Things worth knowing</h3>
-  <p><strong>The text goes where the cursor is when the text <em>arrives</em>, not when you
-     started talking.</strong> Click into another window while it is still transcribing and the
-     text lands there instead. Stay put until it appears.</p>
+  <p><strong>The text goes to the window you were speaking into.</strong> Transcription finishes
+     a moment after you let go, and if something takes focus in between — opening the tray menu
+     to check the status is enough — the app puts focus back before typing. The one case it
+     cannot fix is a window running as administrator, which Windows will not let it restore;
+     there the text still follows focus. <code>Injection.RestoreTargetWindow</code> turns the
+     behaviour off.</p>
   <p><strong>Speak immediately after pressing and the first word can be clipped</strong> — but
      only on your very first dictation after launching. Opening the microphone takes about
      0.7 s the first time and under 0.1 s after that. If the first attempt of a session loses a
@@ -307,14 +310,20 @@ dotnet publish -c Release</code></pre>
 
   <h3>Punctuation</h3>
   <div class="note">
-    <p><strong>The default model does not punctuate.</strong> Moonshine Base transcribes the
-       words it hears and nothing else, so <em>"Hello comma this is a test period"</em> comes out
-       as <code>Hello comma this is a test period</code> — the punctuation words are typed out
-       literally, and no commas or full stops are added on their own either. You will be adding
-       punctuation by hand.</p>
+    <p><strong>Punctuation is unreliable with the default model.</strong> Two separate things:</p>
+    <ul>
+      <li><strong>Spoken punctuation is not obeyed.</strong> Saying
+          <em>"Hello comma this is a test period"</em> types
+          <code>Hello comma this is a test period</code> — the words themselves, not the marks.</li>
+      <li><strong>What punctuation you do get is inconsistent.</strong> Moonshine Base adds full
+          stops and capitals on its own sometimes and not others. The identical recording,
+          transcribed twice in testing, gave <code>...the lazy dog push to talk...</code> once
+          and <code>...the lazy dog. Push to talk...</code> the next time.</li>
+    </ul>
   </div>
-  <p>If that matters more to you than speed, switch to a punctuating model — the Whisper-family
-     engines and SenseVoice add punctuation and casing. See <code>docs/models.md</code>.</p>
+  <p>If you need it to be dependable, switch to a punctuating model — the Whisper-family engines
+     and SenseVoice are built to produce punctuation and casing. See
+     <code>docs/models.md</code>.</p>
   <p>There are no spoken editing commands in any case (no "delete that", no "new paragraph");
      the app types what was recognised and nothing else.</p>
 </section>
@@ -323,7 +332,7 @@ dotnet publish -c Release</code></pre>
   <h2>4. The tray menu</h2>
   <p><strong>Left-click or right-click</strong> the icon:</p>
   <div class="menu">
-    <div class="dim">Push-to-Talk Dictation 1.0.0</div>
+    <div class="dim">Push-to-Talk Dictation 1.0.1</div>
     <div class="sep"></div>
     <div class="act">Toggle Active (On)</div>
     <div class="sep"></div>
@@ -406,6 +415,8 @@ dotnet publish -c Release</code></pre>
           <td>You want instant on/off instead of the memory back</td></tr>
       <tr><td><code>Injection.AppendTrailingSpace</code></td><td><code>true</code></td>
           <td>You do not want an automatic trailing space</td></tr>
+      <tr><td><code>Injection.RestoreTargetWindow</code></td><td><code>true</code></td>
+          <td>You would rather the text always go to whatever has focus when it is ready</td></tr>
       <tr><td><code>Injection.ClipboardThreshold</code></td><td><code>240</code></td>
           <td>Set <code>0</code> if you use a clipboard manager, or if a terminal ignores <kbd>Ctrl</kbd>+<kbd>V</kbd></td></tr>
       <tr><td><code>Audio.SilenceRmsThreshold</code></td><td><code>0.0025</code></td>
@@ -518,8 +529,8 @@ $env:PTTD_StartActive = "false"
           <td>Another app owns that key combination — try <code>"Ctrl+Alt+D"</code>. Or the
               window you are typing into is elevated.</td></tr>
       <tr><td>Recording works, no text appears</td>
-          <td>The target window is elevated, or you clicked into a different window while it was
-              transcribing.</td></tr>
+          <td>The target window is elevated — Windows blocks both the typing and the focus
+              restore for an administrator window.</td></tr>
       <tr><td>Text appears but triggers menus and shortcuts</td>
           <td>A modifier key was still held when typing began. Release the keys deliberately, or
               raise <code>Injection.WaitForModifierReleaseMs</code>.</td></tr>

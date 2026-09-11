@@ -108,7 +108,7 @@ Everything else is behind an interface too:
 | Interface | Swap it to… |
 |---|---|
 | `IAudioRecorder` | use a different capture API, add VAD-based auto-stop, or feed test audio from a file |
-| `ITextInjector` | inject via UI Automation instead of `SendInput`, or write to the clipboard only |
+| `ITextInjector` | inject via UI Automation instead of `SendInput`, or write to the clipboard only. `InjectAsync` receives the window that had focus when the user started speaking, so an implementation can target it directly |
 
 Register your implementation in `Program.cs` in place of the existing one. `DictationController`
 knows nothing about either concrete type.
