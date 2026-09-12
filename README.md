@@ -81,5 +81,20 @@ Full reasoning and the alternatives in [docs/models.md](docs/models.md).
 | `Whisper.net` + `Whisper.net.Runtime` 1.9.1 | whisper.cpp bindings |
 | `Microsoft.Extensions.*` 8.x | Configuration, DI, logging, `IHttpClientFactory` |
 
+## Licence
+
+[MIT](LICENSE). Dependency licences and attribution are in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); all are permissive (MIT / Apache-2.0).
+
+No speech model is distributed here — `scripts/download-models.ps1` fetches one on your
+machine, and each model carries its own licence.
+
+## A note on what this does
+
+To work at all, this app installs a global keyboard hook and synthesises keystrokes. At the
+Win32 level that is the same machinery a keylogger uses, so some endpoint security products
+flag it. Nothing is transmitted anywhere: audio is captured, transcribed locally and
+discarded, and the only file written is the log. The code is short and the whole input path
+lives in `Input/` and `Injection/` if you want to check that yourself.
 Logs: `%LOCALAPPDATA%\PushToTalkDictation\logs\app.log` (tray menu → *Open log folder*).
 Set `Logging.MinimumLevel` to `Debug` for per-clip decode times and real-time factors.
