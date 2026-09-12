@@ -37,6 +37,8 @@ public sealed class SettingsForm : Form
     private readonly ComboBox _device = new();
     private readonly NumericUpDown _minClip = new();
     private readonly NumericUpDown _silenceRms = new();
+    private readonly CheckBox _chunkLong = new();
+    private readonly NumericUpDown _chunkSeconds = new();
 
     // Speech
     private readonly ComboBox _engine = new();
@@ -129,6 +131,14 @@ public sealed class SettingsForm : Form
         Spin(_silenceRms, 0, 1000, 5);
         Row(page, ref y, "Silence threshold (×0.0001)", _silenceRms,
             "25 is the default. Raise it if stray taps produce text, lower it if quiet speech is dropped");
+
+        Row(page, ref y, "Type while I speak", _chunkLong,
+            "Transcribes in segments as you hold, instead of all at once on release");
+        _chunkLong.CheckedChanged += (_, _) => _chunkSeconds.Enabled = _chunkLong.Checked;
+
+        Spin(_chunkSeconds, 5, 120, 5);
+        Row(page, ref y, "Segment length (seconds)", _chunkSeconds,
+            "20 is a good default. Above about 45 the model starts dropping words");
 
         return page;
     }
@@ -238,6 +248,9 @@ public sealed class SettingsForm : Form
         PopulateDevices(_draft.Audio.DeviceId);
         _minClip.Value = Clamp(_minClip, _draft.Audio.MinClipMs);
         _silenceRms.Value = Clamp(_silenceRms, (int)Math.Round(_draft.Audio.SilenceRmsThreshold * 10000));
+        _chunkLong.Checked = _draft.Audio.ChunkLongDictation;
+        _chunkSeconds.Value = Clamp(_chunkSeconds, _draft.Audio.ChunkSeconds);
+        _chunkSeconds.Enabled = _chunkLong.Checked;
 
         _engine.SelectedItem = _draft.SpeechToText.Engine.ToString();
         _warmUp.Checked = _draft.SpeechToText.WarmUpOnStart;
@@ -265,6 +278,8 @@ public sealed class SettingsForm : Form
         _draft.Audio.DeviceId = (_device.SelectedItem as DeviceChoice)?.Id;
         _draft.Audio.MinClipMs = (int)_minClip.Value;
         _draft.Audio.SilenceRmsThreshold = (float)(_silenceRms.Value / 10000m);
+        _draft.Audio.ChunkLongDictation = _chunkLong.Checked;
+        _draft.Audio.ChunkSeconds = (int)_chunkSeconds.Value;
 
         if (_engine.SelectedItem is string engine && Enum.TryParse<SttEngineKind>(engine, out var kind))
             _draft.SpeechToText.Engine = kind;

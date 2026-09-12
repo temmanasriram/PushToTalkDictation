@@ -59,6 +59,10 @@ public sealed class DictationController : IAsyncDisposable
     /// </summary>
     private IntPtr _targetWindow;
 
+    /// <summary>Cancels the segment loop when the hold ends. Only touched on the UI thread.</summary>
+    private CancellationTokenSource? _holdCts;
+    private Task? _chunkLoop;
+
     public event EventHandler<DictationState>? StateChanged;
     public event EventHandler<string>? TranscriptionProduced;
     public event EventHandler<Exception>? Failed;
@@ -195,6 +199,7 @@ public sealed class DictationController : IAsyncDisposable
         // Read synchronously, before anything is dispatched: this is the window the user
         // is looking at as they begin to speak, and it is where the text belongs.
         _targetWindow = Win32.GetForegroundWindow();
+        var target = _targetWindow;
 
         // Returns immediately: the hook callback must not wait on audio device setup.
         _ = Task.Run(async () =>
@@ -204,6 +209,12 @@ public sealed class DictationController : IAsyncDisposable
             {
                 await _recorder.StartAsync(_shutdown.Token).ConfigureAwait(false);
                 State = DictationState.Recording;
+
+                if (_settings.Audio.ChunkLongDictation)
+                {
+                    _holdCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
+                    _chunkLoop = Task.Run(() => ChunkLoopAsync(target, _holdCts.Token));
+                }
             }
             catch (Exception ex)
             {
@@ -221,9 +232,25 @@ public sealed class DictationController : IAsyncDisposable
     private void OnHoldEnded(object? sender, bool cancelled)
     {
         var targetWindow = _targetWindow;
+        var chunkLoop = _chunkLoop;
+        var holdCts = _holdCts;
+        _chunkLoop = null;
+        _holdCts = null;
 
         _ = Task.Run(async () =>
         {
+            // Settle the segment loop first, so a flush cannot land after the stop.
+            if (holdCts is not null)
+            {
+                await holdCts.CancelAsync().ConfigureAwait(false);
+                if (chunkLoop is not null)
+                {
+                    try { await chunkLoop.ConfigureAwait(false); }
+                    catch (OperationCanceledException) { /* expected */ }
+                }
+                holdCts.Dispose();
+            }
+
             await _captureGate.WaitAsync(_shutdown.Token).ConfigureAwait(false);
             try
             {
@@ -256,6 +283,59 @@ public sealed class DictationController : IAsyncDisposable
                 UpdateIdleState();
             }
         });
+    }
+
+    /// <summary>
+    /// While the hotkey is held, hands over a segment of audio every
+    /// <c>Audio.ChunkSeconds</c> so it is transcribed and typed without waiting for the
+    /// release. Each segment goes onto the same queue as a normal clip, so they are decoded
+    /// one at a time and typed in the order spoken.
+    /// </summary>
+    private async Task ChunkLoopAsync(IntPtr targetWindow, CancellationToken ct)
+    {
+        var every = TimeSpan.FromSeconds(Math.Clamp(_settings.Audio.ChunkSeconds, 5, 120));
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(every, ct).ConfigureAwait(false);
+
+                await _captureGate.WaitAsync(ct).ConfigureAwait(false);
+                try
+                {
+                    if (!_recorder.IsRecording) return;
+
+                    var segment = await _recorder.FlushAsync(_settings.Audio.MinClipMs, ct)
+                        .ConfigureAwait(false);
+
+                    if (!IsWorthTranscribing(segment))
+                    {
+                        _logger.LogDebug("Segment not worth transcribing ({Ms:F0} ms, RMS {Rms:F4}).",
+                            segment.Duration.TotalMilliseconds, segment.Rms);
+                        continue;
+                    }
+
+                    _logger.LogDebug("Handing over a {Ms:F0} ms segment mid-dictation.",
+                        segment.Duration.TotalMilliseconds);
+
+                    Interlocked.Increment(ref _pendingClips);
+                    _queue.Writer.TryWrite(new PendingClip(segment, targetWindow));
+                }
+                finally
+                {
+                    _captureGate.Release();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The hold ended, or we are shutting down.
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Segmented dictation failed; the rest arrives on release.");
+        }
     }
 
     private bool IsWorthTranscribing(AudioClip clip)

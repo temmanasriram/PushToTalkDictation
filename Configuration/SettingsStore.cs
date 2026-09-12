@@ -47,6 +47,8 @@ public sealed class SettingsStore
         Add(audio, "DeviceId", edited.Audio.DeviceId, _baseline.Audio.DeviceId);
         Add(audio, "MinClipMs", edited.Audio.MinClipMs, _baseline.Audio.MinClipMs);
         Add(audio, "SilenceRmsThreshold", edited.Audio.SilenceRmsThreshold, _baseline.Audio.SilenceRmsThreshold);
+        Add(audio, "ChunkLongDictation", edited.Audio.ChunkLongDictation, _baseline.Audio.ChunkLongDictation);
+        Add(audio, "ChunkSeconds", edited.Audio.ChunkSeconds, _baseline.Audio.ChunkSeconds);
 
         var stt = Section(root, "SpeechToText");
         Add(stt, "Engine", edited.SpeechToText.Engine.ToString(), _baseline.SpeechToText.Engine.ToString());
@@ -121,6 +123,8 @@ public sealed class SettingsStore
         target.Audio.DeviceId = source.Audio.DeviceId;
         target.Audio.MinClipMs = source.Audio.MinClipMs;
         target.Audio.SilenceRmsThreshold = source.Audio.SilenceRmsThreshold;
+        target.Audio.ChunkLongDictation = source.Audio.ChunkLongDictation;
+        target.Audio.ChunkSeconds = source.Audio.ChunkSeconds;
 
         target.SpeechToText.Engine = source.SpeechToText.Engine;
         target.SpeechToText.WarmUpOnStart = source.SpeechToText.WarmUpOnStart;

@@ -148,6 +148,28 @@ flushes its last buffers asynchronously and skipping the wait clips the end of t
 
 Capture buffer is 50 ms with event sync, which bounds how much tail latency the release adds.
 
+## Segmented dictation
+
+With `Audio.ChunkLongDictation` set, `DictationController.ChunkLoopAsync` runs for the life of
+a hold and every `Audio.ChunkSeconds` calls `IAudioRecorder.FlushAsync`, which detaches the
+audio buffered so far and keeps recording. Segments go onto the same channel as any other
+clip, so they are decoded one at a time and typed in the order spoken.
+
+Two details carry the weight:
+
+**The cut is silence-aware.** `AudioRecorder.FindQuietSplit` slides a 60 ms window over the
+last 1.5 s and cuts at the quietest point, so a boundary lands in a pause rather than through a
+word. Whatever follows the cut is held in `_carryOver` and prepended to the next segment, so no
+audio is lost.
+
+**The buffer needs a lock now.** The capture callback appends while a flush detaches, so both
+take `_bufferLock`. The locked regions are one 50 ms append or a reference swap — this is the
+audio callback, not the keyboard hook, so brief contention is harmless. Without it,
+`RemoveRange` racing `Add` corrupts the list.
+
+Off by default: it types into the focused window while the keys are still held, and it changes
+when text appears.
+
 ## Silence gate
 
 Before a clip reaches the engine, `DictationController.IsWorthTranscribing` drops it if it is

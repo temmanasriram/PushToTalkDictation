@@ -80,6 +80,39 @@ quieter. `Ctrl+Shift` alone additionally collides with the Windows keyboard-layo
 | `TargetSampleRate` | `16000` | What the clip is resampled to. Every supported model wants 16 kHz; don't change it. |
 | `MinClipMs` | `250` | Clips shorter than this are discarded before inference. |
 | `SilenceRmsThreshold` | `0.0025` | Clips quieter than this RMS are discarded. |
+| `ChunkLongDictation` | `false` | Transcribe and type in segments while the hotkey is still held. |
+| `ChunkSeconds` | `20` | Segment length when the above is on. |
+
+### Long dictation
+
+The default model is the constraint here. Measured on a 94-second recording, decoded as one
+clip:
+
+| Held | Wait | RTF | Result |
+|---|---|---|---|
+| up to 45 s | under 2 s | ~0.03 | correct |
+| 55 s | 4.5 s | 0.082 | **silently drops words** |
+| 65 s | 8.5 s | 0.13 | more omissions |
+| 75 s | 34 s | 0.45 | repeats itself in a loop |
+| 94 s | 71 s | 0.76 | one phrase, 37 times |
+
+Moonshine was trained on utterances of a few seconds. There is no windowing, so a long hold is
+one enormous decode, and past roughly 50 seconds the decoder degenerates. Nothing errors — the
+failure is silent, which is what makes it worth knowing about.
+
+`ChunkLongDictation` fixes both halves of that. Every `ChunkSeconds` the audio so far is
+handed to the engine and typed, so each clip stays in the range the model handles *and* text
+appears while you are still speaking rather than in one burst on release. The same 70-second
+dictation that produced 37 repetitions now decodes as five segments at RTF 0.15, each arriving
+about two seconds after it was spoken.
+
+The cut is nudged to the quietest moment within 1.5 s of the boundary, so segments come out
+approximately rather than exactly `ChunkSeconds` long (14–16 s was typical with a 15 s
+setting) and boundaries usually land in a pause rather than through a word. Usually, not
+always — a boundary that finds no real pause can still garble a word or two.
+
+It is off by default because it changes when text lands, and because it types into the focused
+window while you are still holding the keys.
 
 To find an endpoint id:
 

@@ -144,9 +144,34 @@ is discarded before it ever reaches the model.
 
 **A stuck key cannot record forever** — recording stops on its own after 2 minutes.
 
+**Don't hold it for a whole minute.** The default model handles up to about 45 seconds well.
+Past roughly 50 seconds it quietly starts dropping words, and past 75 it repeats itself — with
+no warning either way. Dictate a sentence or a paragraph at a time and release; you can start
+the next one while the last is still being transcribed, and they arrive in order. If you want
+to dictate in long stretches, turn on **Type while I speak** (below).
+
 **The space is swallowed**, so the window you are typing into never receives it.
 <kbd>Ctrl</kbd> and <kbd>Shift</kbd> are always passed through, so every other shortcut on
 your system keeps working.
+
+### Type while I speak
+
+Settings → **Audio** → *Type while I speak*. Off by default.
+
+With it on, the app transcribes and types every 20 seconds (configurable) while you are still
+holding the key, instead of waiting for the release. Two reasons to use it:
+
+- **Text appears as you talk**, rather than in one burst at the end.
+- **It keeps long dictation accurate.** Each segment stays short enough for the model, which is
+  what stops the word-dropping and repetition described above.
+
+A 70-second dictation that would otherwise come back as gibberish arrives as five chunks, each
+about two seconds behind your voice.
+
+The app cuts at the quietest moment near each boundary, so segments land in natural pauses and
+come out roughly — not exactly — the length you set. It is not perfect: a boundary that finds
+no real pause can garble a word. Leave it off if you dictate in short bursts, where it buys
+nothing.
 
 ### Punctuation
 
@@ -173,7 +198,7 @@ app types what was recognised and nothing else.
 
 | Item | What it does |
 |---|---|
-| *Push-to-Talk Dictation 1.1.0* | The version you are running — quote it if you report a problem |
+| *Push-to-Talk Dictation 1.2.0* | The version you are running — quote it if you report a problem |
 | **Toggle Active (On/Off)** | Turns dictation on or off — see below |
 | *Ready - hold Ctrl+Shift+Space* | Current status, the same information as the icon colour |
 | *Engine: …* | Which speech engine is in use |
@@ -261,6 +286,8 @@ tell you.
 | `SpeechToText.UnloadOnInactive` | `true` | You want instant on/off instead of the memory back |
 | `Injection.AppendTrailingSpace` | `true` | You do not want an automatic trailing space |
 | `Injection.RestoreTargetWindow` | `true` | You would rather the text always go to whatever has focus when it is ready |
+| `Audio.ChunkLongDictation` | `false` | You dictate in long stretches and want text to appear as you speak |
+| `Audio.ChunkSeconds` | `20` | Tuning how often segments are transcribed |
 | `Injection.ClipboardThreshold` | `240` | Set `0` if you use a clipboard manager, or if a terminal ignores <kbd>Ctrl</kbd>+<kbd>V</kbd> |
 | `Audio.SilenceRmsThreshold` | `0.0025` | Raise to `0.005` if stray taps produce phantom text; lower to `0.001` if quiet speech is dropped |
 | `Audio.DeviceId` | `null` | You have several microphones and it picked the wrong one |

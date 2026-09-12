@@ -29,6 +29,27 @@ public sealed class AudioSettings
     public int TargetSampleRate { get; set; } = 16000;
     public int MinClipMs { get; set; } = 250;
     public float SilenceRmsThreshold { get; set; } = 0.0025f;
+
+    /// <summary>
+    /// Transcribe and type in segments while the hotkey is still held, instead of waiting
+    /// for the release.
+    ///
+    /// Two reasons to want it. Text appears as you speak rather than in one burst at the
+    /// end; and it keeps each clip short enough for the model to handle - Moonshine starts
+    /// quietly dropping words past about 50 seconds of audio and degenerates into repeating
+    /// itself past about 75, because it was trained on utterances of a few seconds.
+    ///
+    /// Off by default: it changes when text lands, and it types into the focused window
+    /// while you are still holding the keys.
+    /// </summary>
+    public bool ChunkLongDictation { get; set; }
+
+    /// <summary>
+    /// Segment length in seconds when <see cref="ChunkLongDictation"/> is on. The split is
+    /// nudged to the quietest moment near the boundary so a word is not cut in half, so
+    /// segments are approximately, not exactly, this long.
+    /// </summary>
+    public int ChunkSeconds { get; set; } = 20;
 }
 
 public enum SttEngineKind
