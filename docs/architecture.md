@@ -18,6 +18,7 @@
 | `SettingsService` | `Configuration/` | Validates edits, applies what it can live, reports what needs a restart |
 | `SettingsStore` | `Configuration/` | Diffs edits against the defaults and writes `appsettings.user.json` |
 | `TextInjector` | `Injection/` | `SendInput` + `KEYEVENTF_UNICODE`, clipboard fast path |
+| `PreviewOverlay` | `Tray/` | Inert floating caption of the in-progress recognition |
 | `FileLoggerProvider` | `Diagnostics/` | Queued, non-blocking append-only log |
 
 Every arrow between these is an interface or an event. Nothing reaches across two layers.
@@ -169,6 +170,33 @@ audio callback, not the keyboard hook, so brief contention is harmless. Without 
 
 Off by default: it types into the focused window while the keys are still held, and it changes
 when text appears.
+
+## Preview overlay
+
+With `Preview.ShowOverlay` set, `DictationController.PreviewLoopAsync` runs for the life of a
+hold and every `Preview.RefreshMs` re-recognises the last `Preview.MaxSeconds` of audio, via
+`IAudioRecorder.PeekAsync` - a read-only snapshot that consumes nothing, so segmenting and the
+final clip are unaffected. The result is published on `PreviewUpdated`, which
+`TrayApplicationContext` marshals to the UI thread.
+
+Three things make this safe rather than a source of bugs:
+
+**Preview text never enters the pipeline.** It is provisional - each pass supersedes the last -
+so it goes straight to the event and never near the clip channel or the injector. Nothing that
+gets typed is ever revised, which is what lets the app avoid sending backspaces into somebody
+else's document.
+
+**The window cannot take focus.** `WS_EX_NOACTIVATE` plus an overridden
+`ShowWithoutActivation`. If the overlay ever became foreground, `TextInjector` would type the
+transcript into it instead of the user's document.
+
+**The loop is settled before the recording stops.** `OnHoldEnded` cancels and awaits the
+per-hold loops before touching the recorder, so no preview decode holds the engine's session
+gate when the real transcript is waiting on it. That is why the overlay costs nothing in
+delivered-text latency.
+
+Bounded by design: cost per refresh is proportional to `MaxSeconds`, not to how long the hold
+has run, which also keeps every preview clip inside the length the model handles well.
 
 ## Silence gate
 

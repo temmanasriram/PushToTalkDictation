@@ -59,12 +59,22 @@ public sealed class DictationController : IAsyncDisposable
     /// </summary>
     private IntPtr _targetWindow;
 
-    /// <summary>Cancels the segment loop when the hold ends. Only touched on the UI thread.</summary>
+    /// <summary>
+    /// Cancels the per-hold background loops (segmenting, preview) when the hold ends.
+    /// Only touched on the UI thread.
+    /// </summary>
     private CancellationTokenSource? _holdCts;
-    private Task? _chunkLoop;
+    private Task[] _holdTasks = [];
 
     public event EventHandler<DictationState>? StateChanged;
     public event EventHandler<string>? TranscriptionProduced;
+
+    /// <summary>
+    /// In-progress recognition of what is currently being said, for the preview overlay.
+    /// Null or empty means "nothing to show" - hide it. Never injected anywhere: this text
+    /// is provisional and will be superseded.
+    /// </summary>
+    public event EventHandler<string?>? PreviewUpdated;
     public event EventHandler<Exception>? Failed;
 
     public bool IsActive { get; private set; }
@@ -210,10 +220,18 @@ public sealed class DictationController : IAsyncDisposable
                 await _recorder.StartAsync(_shutdown.Token).ConfigureAwait(false);
                 State = DictationState.Recording;
 
-                if (_settings.Audio.ChunkLongDictation)
+                var wantChunking = _settings.Audio.ChunkLongDictation;
+                var wantPreview = _settings.Preview.ShowOverlay;
+
+                if (wantChunking || wantPreview)
                 {
                     _holdCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
-                    _chunkLoop = Task.Run(() => ChunkLoopAsync(target, _holdCts.Token));
+                    var token = _holdCts.Token;
+
+                    var loops = new List<Task>(2);
+                    if (wantChunking) loops.Add(Task.Run(() => ChunkLoopAsync(target, token)));
+                    if (wantPreview) loops.Add(Task.Run(() => PreviewLoopAsync(token)));
+                    _holdTasks = [.. loops];
                 }
             }
             catch (Exception ex)
@@ -232,24 +250,28 @@ public sealed class DictationController : IAsyncDisposable
     private void OnHoldEnded(object? sender, bool cancelled)
     {
         var targetWindow = _targetWindow;
-        var chunkLoop = _chunkLoop;
+        var holdTasks = _holdTasks;
         var holdCts = _holdCts;
-        _chunkLoop = null;
+        _holdTasks = [];
         _holdCts = null;
 
         _ = Task.Run(async () =>
         {
-            // Settle the segment loop first, so a flush cannot land after the stop.
+            // Settle the per-hold loops first, so a flush or a preview decode cannot land
+            // after the stop.
             if (holdCts is not null)
             {
                 await holdCts.CancelAsync().ConfigureAwait(false);
-                if (chunkLoop is not null)
+                foreach (var loop in holdTasks)
                 {
-                    try { await chunkLoop.ConfigureAwait(false); }
+                    try { await loop.ConfigureAwait(false); }
                     catch (OperationCanceledException) { /* expected */ }
                 }
                 holdCts.Dispose();
             }
+
+            // The overlay has nothing left to show once the hold is over.
+            if (_settings.Preview.ShowOverlay) PreviewUpdated?.Invoke(this, null);
 
             await _captureGate.WaitAsync(_shutdown.Token).ConfigureAwait(false);
             try
@@ -335,6 +357,56 @@ public sealed class DictationController : IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Segmented dictation failed; the rest arrives on release.");
+        }
+    }
+
+    /// <summary>
+    /// While the hotkey is held, re-recognises the most recent audio every
+    /// <c>Preview.RefreshMs</c> and publishes it for the overlay.
+    ///
+    /// Deliberately separate from the injection pipeline. Preview text is provisional -
+    /// each pass supersedes the last - so it must never reach the clip queue or the
+    /// injector. It also only ever looks at the last <c>Preview.MaxSeconds</c>, which keeps
+    /// the cost per pass flat no matter how long the hold runs, and keeps it well inside
+    /// the clip length the model handles.
+    ///
+    /// Preview decodes share the engine's session gate with real ones, so a segment waiting
+    /// to be transcribed can be held up by at most one preview pass.
+    /// </summary>
+    private async Task PreviewLoopAsync(CancellationToken ct)
+    {
+        var refresh = TimeSpan.FromMilliseconds(Math.Clamp(_settings.Preview.RefreshMs, 200, 5000));
+        var maxMs = Math.Clamp(_settings.Preview.MaxSeconds, 2, 60) * 1000;
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(refresh, ct).ConfigureAwait(false);
+                if (!_recorder.IsRecording) return;
+
+                var clip = await _recorder.PeekAsync(maxMs, ct).ConfigureAwait(false);
+                if (clip.Samples.Length == 0) continue;
+                if (clip.Rms < _settings.Audio.SilenceRmsThreshold) continue;
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var text = await _engine.TranscribeAsync(clip, ct).ConfigureAwait(false);
+
+                _logger.LogDebug("Preview: {Audio:F1}s re-recognised in {Ms} ms, {Chars} chars.",
+                    clip.Duration.TotalSeconds, sw.ElapsedMilliseconds, text.Length);
+
+                if (!string.IsNullOrWhiteSpace(text))
+                    PreviewUpdated?.Invoke(this, text);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The hold ended, or we are shutting down.
+        }
+        catch (Exception ex)
+        {
+            // A failed preview is cosmetic; the real transcript still arrives on release.
+            _logger.LogDebug(ex, "Preview recognition failed.");
         }
     }
 

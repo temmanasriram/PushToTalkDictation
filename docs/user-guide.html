@@ -331,6 +331,26 @@ dotnet publish -c Release</code></pre>
      finds no real pause can garble a word. Leave it off if you dictate in short bursts, where
      it buys nothing.</p>
 
+  <h3>Show a preview while speaking</h3>
+  <p>Settings → <strong>Typing</strong> → <em>Show a preview while speaking</em>. Off by
+     default.</p>
+  <p>A small dark caption appears near the bottom of the screen while you hold the key, showing
+     what the app is hearing, and disappears when you let go. Only the finished text is ever
+     typed into your document — the caption is a provisional guess that gets rewritten as you
+     keep talking, which is exactly why it lives in its own window instead of being typed and
+     corrected.</p>
+  <p>The window cannot be clicked, cannot take focus, and does not appear in Alt+Tab, so it will
+     not get in the way of whatever you are working in.</p>
+  <div class="note">
+    <p><strong>What it costs:</strong> nothing while idle, and nothing in how fast your text
+       arrives — measured at 725 ms from release to typed text with it on, against 750 ms with
+       it off. While you are actually holding the key it uses about <strong>155 MB</strong> more
+       memory and around a quarter of one CPU core, because it re-recognises the last 12 seconds
+       of audio roughly once a second. If that is too much, lower
+       <code>Preview.MaxSeconds</code> in <code>appsettings.json</code> — at 5 seconds the extra
+       memory drops to about 58 MB.</p>
+  </div>
+
   <h3>Punctuation</h3>
   <div class="note">
     <p><strong>Punctuation is unreliable with the default model.</strong> Two separate things:</p>
@@ -355,7 +375,7 @@ dotnet publish -c Release</code></pre>
   <h2>4. The tray menu</h2>
   <p><strong>Left-click or right-click</strong> the icon:</p>
   <div class="menu">
-    <div class="dim">Push-to-Talk Dictation 1.2.0</div>
+    <div class="dim">Push-to-Talk Dictation 1.3.0</div>
     <div class="sep"></div>
     <div class="act">Toggle Active (On)</div>
     <div class="sep"></div>
@@ -467,6 +487,8 @@ dotnet publish -c Release</code></pre>
           <td>You do not want an automatic trailing space</td></tr>
       <tr><td><code>Injection.RestoreTargetWindow</code></td><td><code>true</code></td>
           <td>You would rather the text always go to whatever has focus when it is ready</td></tr>
+      <tr><td><code>Preview.ShowOverlay</code></td><td><code>false</code></td>
+          <td>You want to see what is being heard while you talk</td></tr>
       <tr><td><code>Audio.ChunkLongDictation</code></td><td><code>false</code></td>
           <td>You dictate in long stretches and want text to appear as you speak</td></tr>
       <tr><td><code>Audio.ChunkSeconds</code></td><td><code>20</code></td>

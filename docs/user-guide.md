@@ -173,6 +173,25 @@ come out roughly — not exactly — the length you set. It is not perfect: a bo
 no real pause can garble a word. Leave it off if you dictate in short bursts, where it buys
 nothing.
 
+### Show a preview while speaking
+
+Settings → **Typing** → *Show a preview while speaking*. Off by default.
+
+A small dark caption appears near the bottom of the screen while you hold the key, showing what
+the app is hearing, and disappears when you let go. Only the finished text is ever typed into
+your document — the caption is a provisional guess that gets rewritten as you keep talking,
+which is exactly why it lives in its own window instead of being typed and corrected.
+
+The window cannot be clicked, cannot take focus, and does not appear in Alt+Tab, so it will not
+get in the way of whatever you are working in.
+
+**What it costs:** nothing while idle, and nothing in how fast your text arrives — measured at
+725 ms from release to typed text with it on, against 750 ms with it off. While you are actually
+holding the key it uses about **155 MB** more memory and around a quarter of one CPU core,
+because it re-recognises the last 12 seconds of audio roughly once a second. If that is too
+much, lower `Preview.MaxSeconds` in `appsettings.json` — at 5 seconds the extra memory drops to
+about 58 MB.
+
 ### Punctuation
 
 **Punctuation is unreliable with the default model.** Two separate things to know:
@@ -198,7 +217,7 @@ app types what was recognised and nothing else.
 
 | Item | What it does |
 |---|---|
-| *Push-to-Talk Dictation 1.2.0* | The version you are running — quote it if you report a problem |
+| *Push-to-Talk Dictation 1.3.0* | The version you are running — quote it if you report a problem |
 | **Toggle Active (On/Off)** | Turns dictation on or off — see below |
 | *Ready - hold Ctrl+Shift+Space* | Current status, the same information as the icon colour |
 | *Engine: …* | Which speech engine is in use |
@@ -286,6 +305,7 @@ tell you.
 | `SpeechToText.UnloadOnInactive` | `true` | You want instant on/off instead of the memory back |
 | `Injection.AppendTrailingSpace` | `true` | You do not want an automatic trailing space |
 | `Injection.RestoreTargetWindow` | `true` | You would rather the text always go to whatever has focus when it is ready |
+| `Preview.ShowOverlay` | `false` | You want to see what is being heard while you talk |
 | `Audio.ChunkLongDictation` | `false` | You dictate in long stretches and want text to appear as you speak |
 | `Audio.ChunkSeconds` | `20` | Tuning how often segments are transcribed |
 | `Injection.ClipboardThreshold` | `240` | Set `0` if you use a clipboard manager, or if a terminal ignores <kbd>Ctrl</kbd>+<kbd>V</kbd> |

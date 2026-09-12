@@ -7,6 +7,7 @@ public sealed class AppSettings
     public AudioSettings Audio { get; set; } = new();
     public SpeechToTextSettings SpeechToText { get; set; } = new();
     public InjectionSettings Injection { get; set; } = new();
+    public PreviewSettings Preview { get; set; } = new();
     public LoggingSettings Logging { get; set; } = new();
 
     /// <summary>Whether the app starts in the "Active" state.</summary>
@@ -146,6 +147,30 @@ public sealed class InjectionSettings
     /// this, text lands wherever focus happens to be when transcription finishes.
     /// </summary>
     public bool RestoreTargetWindow { get; set; } = true;
+}
+
+public sealed class PreviewSettings
+{
+    /// <summary>
+    /// Show a small floating window with what is being recognised, while the hotkey is
+    /// still held.
+    ///
+    /// This is the safe half of live dictation. A streaming recogniser revises what it has
+    /// already emitted, and reflecting that in the target window would mean sending
+    /// backspaces into someone else's document - destructive if the caret moved or the app
+    /// autocompleted. The overlay is ours to rewrite freely, so the preview can change as
+    /// often as it likes while only finished text is ever typed.
+    /// </summary>
+    public bool ShowOverlay { get; set; }
+
+    /// <summary>How often the in-progress audio is re-recognised for the preview.</summary>
+    public int RefreshMs { get; set; } = 800;
+
+    /// <summary>
+    /// How much of the most recent audio the preview re-recognises. Bounds the cost: the
+    /// work per refresh is proportional to this, not to how long the hold has run.
+    /// </summary>
+    public int MaxSeconds { get; set; } = 12;
 }
 
 public sealed class LoggingSettings

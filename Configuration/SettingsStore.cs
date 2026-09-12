@@ -62,6 +62,11 @@ public sealed class SettingsStore
         Add(injection, "AppendTrailingSpace", edited.Injection.AppendTrailingSpace, _baseline.Injection.AppendTrailingSpace);
         Add(injection, "RestoreTargetWindow", edited.Injection.RestoreTargetWindow, _baseline.Injection.RestoreTargetWindow);
 
+        var preview = Section(root, "Preview");
+        Add(preview, "ShowOverlay", edited.Preview.ShowOverlay, _baseline.Preview.ShowOverlay);
+        Add(preview, "RefreshMs", edited.Preview.RefreshMs, _baseline.Preview.RefreshMs);
+        Add(preview, "MaxSeconds", edited.Preview.MaxSeconds, _baseline.Preview.MaxSeconds);
+
         var logging = Section(root, "Logging");
         Add(logging, "MinimumLevel", edited.Logging.MinimumLevel, _baseline.Logging.MinimumLevel);
 
@@ -135,6 +140,10 @@ public sealed class SettingsStore
         target.Injection.WaitForModifierReleaseMs = source.Injection.WaitForModifierReleaseMs;
         target.Injection.AppendTrailingSpace = source.Injection.AppendTrailingSpace;
         target.Injection.RestoreTargetWindow = source.Injection.RestoreTargetWindow;
+
+        target.Preview.ShowOverlay = source.Preview.ShowOverlay;
+        target.Preview.RefreshMs = source.Preview.RefreshMs;
+        target.Preview.MaxSeconds = source.Preview.MaxSeconds;
 
         target.Logging.MinimumLevel = source.Logging.MinimumLevel;
 

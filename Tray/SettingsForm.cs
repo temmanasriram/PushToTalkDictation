@@ -51,6 +51,7 @@ public sealed class SettingsForm : Form
     private readonly NumericUpDown _modifierWait = new();
     private readonly CheckBox _trailingSpace = new();
     private readonly CheckBox _restoreTarget = new();
+    private readonly CheckBox _showOverlay = new();
 
     // General
     private readonly ComboBox _logLevel = new();
@@ -167,6 +168,9 @@ public sealed class SettingsForm : Form
         var page = NewPage("Typing");
         var y = 14;
 
+        Row(page, ref y, "Show a preview while speaking", _showOverlay,
+            "A small floating caption of what is being heard; only finished text is typed");
+
         Row(page, ref y, "Add a trailing space", _trailingSpace,
             "Keeps consecutive dictations from running together");
 
@@ -261,6 +265,7 @@ public sealed class SettingsForm : Form
         _modifierWait.Value = Clamp(_modifierWait, _draft.Injection.WaitForModifierReleaseMs);
         _trailingSpace.Checked = _draft.Injection.AppendTrailingSpace;
         _restoreTarget.Checked = _draft.Injection.RestoreTargetWindow;
+        _showOverlay.Checked = _draft.Preview.ShowOverlay;
 
         _logLevel.SelectedItem = NormalizeLevel(_draft.Logging.MinimumLevel);
         _startActive.Checked = _draft.StartActive;
@@ -291,6 +296,7 @@ public sealed class SettingsForm : Form
         _draft.Injection.WaitForModifierReleaseMs = (int)_modifierWait.Value;
         _draft.Injection.AppendTrailingSpace = _trailingSpace.Checked;
         _draft.Injection.RestoreTargetWindow = _restoreTarget.Checked;
+        _draft.Preview.ShowOverlay = _showOverlay.Checked;
 
         _draft.Logging.MinimumLevel = _logLevel.SelectedItem as string ?? "Information";
         _draft.StartActive = _startActive.Checked;

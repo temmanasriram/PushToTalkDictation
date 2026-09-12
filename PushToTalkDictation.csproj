@@ -19,7 +19,7 @@
 
     <!-- The single place the version is set. AppInfo.cs reads it back from the built
          assembly, so the tray menu, the log and the .exe properties never disagree. -->
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <Product>Push-to-Talk Dictation</Product>
     <Description>Hold a hotkey, speak, release - local speech-to-text typed into the focused window.</Description>
 

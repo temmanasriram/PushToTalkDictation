@@ -264,6 +264,49 @@ manager that would capture the transient contents, or if a target app ignores `C
 
 ---
 
+## Preview
+
+| Key | Default | Meaning |
+|---|---|---|
+| `ShowOverlay` | `false` | Show a floating caption of what is being heard, while the hotkey is held. |
+| `RefreshMs` | `800` | How often the in-progress audio is re-recognised. |
+| `MaxSeconds` | `12` | How much of the most recent audio each refresh re-recognises. |
+
+The overlay is the safe half of live dictation. A streaming recogniser revises text it has
+already emitted; reflecting that in the target window would mean sending backspaces into
+someone else's document, which breaks the moment the caret moves or the app autocompletes.
+The overlay is the app's own window, so the preview can be rewritten as often as it likes
+while only finished text is ever typed.
+
+The window is inert by construction: `WS_EX_NOACTIVATE` and an overridden
+`ShowWithoutActivation` so it never takes focus (if it did, the transcript would be typed into
+*it*), `WS_EX_TRANSPARENT` so clicks pass through it, `WS_EX_TOOLWINDOW` so it stays out of
+Alt+Tab.
+
+### What it costs
+
+Measured over a 25-second hold, decoding a full preview window each refresh:
+
+| `MaxSeconds` | Memory while holding | Work per refresh |
+|---|---|---|
+| overlay off | ~331 MB | — |
+| 5 | ~390 MB (**+58 MB**) | 75-150 ms |
+| 12 (default) | ~486 MB (**+155 MB**) | 234-266 ms |
+
+Both scale with `MaxSeconds`, because each refresh decodes that much audio and ONNX Runtime
+keeps an arena sized for it. **Idle cost is nil** - the window is created on first use and the
+loop only runs while the hotkey is held.
+
+**It adds nothing to the latency of the text you actually get.** Release-to-transcript measured
+725 ms with the overlay on against 750 ms with it off - the same within noise, because the
+preview loop is cancelled and awaited before the recording is stopped, so no preview decode is
+ever competing with the real one.
+
+Lower `MaxSeconds` if the memory matters more than seeing a longer run of context; raise
+`RefreshMs` to cut the CPU duty cycle at the cost of a choppier preview.
+
+---
+
 ## Logging
 
 | Key | Default | Meaning |

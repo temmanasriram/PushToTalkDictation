@@ -29,6 +29,12 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private SettingsForm? _settingsDialog;
 
+    /// <summary>
+    /// Created on demand, because most users never turn the preview on and an unused
+    /// window would still cost a handle and a GDI surface.
+    /// </summary>
+    private PreviewOverlay? _overlay;
+
     public TrayApplicationContext(
         DictationController controller,
         AppSettings settings,
@@ -112,6 +118,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _controller.StateChanged += OnStateChanged;
         _controller.Failed += OnFailed;
+        _controller.PreviewUpdated += OnPreviewUpdated;
 
         _controller.SetActive(_settings.StartActive);
 
@@ -131,6 +138,22 @@ public sealed class TrayApplicationContext : ApplicationContext
     private void OnFailed(object? sender, Exception ex) => _uiContext.Post(_ =>
     {
         _notifyIcon.ShowBalloonTip(4000, "Push-to-Talk Dictation", ex.Message, ToolTipIcon.Error);
+    }, null);
+
+    /// <summary>
+    /// Arrives off the pipeline, so it marshals to the UI thread before touching the
+    /// window. Null means the hold is over - hide it.
+    /// </summary>
+    private void OnPreviewUpdated(object? sender, string? text) => _uiContext.Post(_ =>
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _overlay?.HideOverlay();
+            return;
+        }
+
+        _overlay ??= new PreviewOverlay();
+        _overlay.Update(text);
     }, null);
 
     private void RefreshModelItem() =>
@@ -252,6 +275,9 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             _controller.StateChanged -= OnStateChanged;
             _controller.Failed -= OnFailed;
+            _controller.PreviewUpdated -= OnPreviewUpdated;
+
+            _overlay?.Dispose();
 
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();

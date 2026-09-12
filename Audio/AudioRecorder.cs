@@ -27,6 +27,13 @@ public interface IAudioRecorder : IDisposable
 
     /// <summary>Stops capture and throws the buffer away.</summary>
     Task CancelAsync();
+
+    /// <summary>
+    /// A copy of the most recent <paramref name="maxMs"/> of buffered audio, without
+    /// consuming any of it - for showing a preview of what is being said while the
+    /// recording continues. Returns an empty clip when not recording.
+    /// </summary>
+    Task<AudioClip> PeekAsync(int maxMs, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -127,6 +134,55 @@ public sealed class AudioRecorder : IAudioRecorder
     public async Task CancelAsync()
     {
         await StopCoreAsync().ConfigureAwait(false);
+    }
+
+    public async Task<AudioClip> PeekAsync(int maxMs, CancellationToken ct = default)
+    {
+        float[] tail;
+        int rate;
+
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (!IsRecording) return AudioClip.Empty(_settings.TargetSampleRate);
+
+            rate = _nativeSampleRate;
+            var maxSamples = Math.Max(1, maxMs) * rate / 1000;
+
+            // Lock order is always _gate then _bufferLock, same as the flush path.
+            lock (_bufferLock)
+            {
+                var buffer = _monoBuffer;
+                if (buffer is null) return AudioClip.Empty(_settings.TargetSampleRate);
+
+                // The audio is logically _carryOver followed by buffer; take the tail of
+                // that, which may straddle the two.
+                var total = _carryOver.Length + buffer.Count;
+                var take = Math.Min(maxSamples, total);
+                if (take == 0) return AudioClip.Empty(_settings.TargetSampleRate);
+
+                tail = new float[take];
+                var start = total - take;
+                var written = 0;
+
+                if (start < _carryOver.Length)
+                {
+                    written = Math.Min(_carryOver.Length - start, take);
+                    Array.Copy(_carryOver, start, tail, 0, written);
+                }
+
+                var bufferStart = Math.Max(0, start - _carryOver.Length);
+                buffer.CopyTo(bufferStart, tail, written, take - written);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        return await Task.Run(() =>
+            new AudioClip(Resample(tail, rate, _settings.TargetSampleRate), _settings.TargetSampleRate),
+            ct).ConfigureAwait(false);
     }
 
     public async Task<AudioClip> FlushAsync(int minMs, CancellationToken ct = default)
